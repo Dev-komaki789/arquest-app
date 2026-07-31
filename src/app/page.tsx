@@ -48,8 +48,17 @@ import {
 // 周辺スポットを検索するフック
 import { useNearbyPois } from "@/hooks/useNearbyPois";
 
-// メートルを読みやすい文字列にする関数（例: 1234 → "1.23 km"）
-import { formatDistance } from "@/lib/geo";
+// 目的地と道順を管理するフック
+import { useDestination } from "@/hooks/useDestination";
+
+// 距離・方角・所要時間の計算と表示用の関数
+import {
+  bearingInDegrees,
+  distanceInMeters,
+  formatBearing,
+  formatDistance,
+  formatWalkingDuration,
+} from "@/lib/geo";
 
 // カテゴリの名前と色
 import { POI_CATEGORY_INFO } from "@/lib/poi";
@@ -111,6 +120,17 @@ export default function Home() {
     search,
   } = useNearbyPois();
 
+  // 目的地と、そこまでの道順
+  const {
+    destination,
+    routeCoordinates,
+    routeDistanceM,
+    routeStatus,
+    routeError,
+    selectDestination,
+    clearDestination,
+  } = useDestination();
+
   // 追従中かどうかを、あとで何度も使うので変数にしておく。
   // こうしておくと status の文字列をあちこちに書かずに済み、打ち間違いも防げる。
   const isTracking = status === "tracking";
@@ -131,6 +151,37 @@ export default function Home() {
    * 将来は設定画面（画面9）のスライダーで変えられるようにする。
    */
   const SEARCH_RADIUS_M = 800;
+
+  /**
+   * 目的地までの直線距離と方角。
+   *
+   * 現在地か目的地が無いときは null になる。
+   * 位置が更新されるたびに計算し直されるので、
+   * 歩くと「あと◯m」が減っていく。
+   *
+   * ここで計算する直線距離は、道なりの距離（OSRM）とは別物。
+   * 通信せずその場で出せるので、追従中でも即座に更新できる。
+   * 仕様書§2.3の「近づいてきたかも」の判断も、この値で行う。
+   */
+  const toDestination =
+    position && destination
+      ? {
+          distanceM: distanceInMeters(
+            position.lat,
+            position.lng,
+            destination.lat,
+            destination.lng,
+          ),
+          bearing: formatBearing(
+            bearingInDegrees(
+              position.lat,
+              position.lng,
+              destination.lat,
+              destination.lng,
+            ),
+          ),
+        }
+      : null;
 
   // ここから下（return の中）が、実際に画面に表示される部分。
   // HTMLに見えるがJavaScriptの中に書ける特別な記法で、JSX と呼ぶ。
@@ -272,7 +323,89 @@ export default function Home() {
           accuracy={position.accuracy}
           trail={trail}
           pois={pois}
+          destination={destination}
+          routeCoordinates={routeCoordinates}
+          // 地図の吹き出しで「ここを目的地にする」が押されたときの処理。
+          // 押した時点の現在地を出発地として道順を計算する。
+          onSelectDestination={(poi) =>
+            selectDestination(poi, position.lat, position.lng)
+          }
         />
+      )}
+
+      {/* ------------------------------------------------------------
+          目的地の情報（仕様書の画面5「目的地まで移動中」）
+          ------------------------------------------------------------
+          仕様書§2.2により、この画面では具体的なお題は伏せる設計。
+          今は目的地の名前を出しているが、
+          本来は到着するまで名前を隠し、ジャンルと距離感だけを見せる。
+          （いまは動作確認のため名前を出している） */}
+      {destination && toDestination && (
+        <section className="rounded-xl bg-[#1E2A4A] p-4 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs text-white/60">目的地</p>
+              <p className="font-bold">{destination.name}</p>
+              <p className="mt-0.5 text-xs text-white/60">
+                {POI_CATEGORY_INFO[destination.category].label}
+              </p>
+            </div>
+            <button
+              onClick={clearDestination}
+              className="shrink-0 rounded-lg border border-white/30 px-3 py-1.5 text-xs active:bg-white/10"
+            >
+              取り消す
+            </button>
+          </div>
+
+          {/* 直線距離と方角。位置が動くたびに更新される。
+              大きく出しているのは、歩きながら一目で見たい情報だから */}
+          <div className="mt-3 flex items-end gap-4">
+            <div>
+              <p className="text-xs text-white/60">直線距離</p>
+              <p className="font-mono text-3xl font-bold">
+                {formatDistance(toDestination.distanceM)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-white/60">方角</p>
+              <p className="text-3xl font-bold">
+                {toDestination.bearing.arrow}
+                <span className="ml-1 text-xl">
+                  {toDestination.bearing.name}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* 道なりの距離と所要時間。通信して取得するので、状態を分けて表示する */}
+          <div className="mt-3 border-t border-white/15 pt-3 text-sm">
+            {routeStatus === "loading" && (
+              <p className="text-white/70">道順を計算中…</p>
+            )}
+
+            {routeStatus === "success" && routeDistanceM !== null && (
+              <p>
+                道なり {formatDistance(routeDistanceM)}・徒歩
+                {formatWalkingDuration(routeDistanceM)}
+                <span className="ml-2 text-xs text-white/50">
+                  （青い破線）
+                </span>
+              </p>
+            )}
+
+            {/* 道順が引けなくても、上の直線距離と方角だけで歩ける。
+                仕様書の画面5はもともと距離と方角だけを見せる設計なので、
+                ここが失敗しても致命的ではないことを伝える */}
+            {routeError && (
+              <p className="text-xs leading-relaxed text-[#F5B942]">
+                {routeError}
+                <br />
+                距離と方角だけでも目的地に向かえます。
+              </p>
+            )}
+          </div>
+        </section>
       )}
 
       {/* ------------------------------------------------------------
@@ -354,19 +487,39 @@ export default function Home() {
                 })}
               </ul>
 
-              {/* 近い順に5件。地図の点をクリックしても同じ情報が出る */}
+              {/* 近い順に5件。押すとそのまま目的地にできる。
+                  地図の点をタップしても同じことができるが、
+                  小さい点を狙うより一覧から選ぶほうが確実なので両方用意する */}
               <ol className="mt-3 space-y-1 text-xs text-[#1E2A4A]">
                 {pois.slice(0, 5).map((poi) => (
-                  <li key={poi.id} className="flex justify-between gap-2">
-                    <span className="truncate">{poi.name}</span>
-                    <span className="shrink-0 font-mono text-[#1E2A4A]/60">
-                      {Math.round(poi.distanceM)} m
-                    </span>
+                  <li key={poi.id}>
+                    <button
+                      onClick={() =>
+                        selectDestination(poi, position.lat, position.lng)
+                      }
+                      className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left active:bg-white"
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        {/* 地図の点と同じ色にして、対応が分かるようにする */}
+                        <span
+                          className="inline-block h-2 w-2 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor:
+                              POI_CATEGORY_INFO[poi.category].color,
+                          }}
+                        />
+                        <span className="truncate">{poi.name}</span>
+                      </span>
+                      <span className="shrink-0 font-mono text-[#1E2A4A]/60">
+                        {Math.round(poi.distanceM)} m
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ol>
               <p className="mt-2 text-xs text-[#1E2A4A]/60">
-                地図の色つきの点をタップすると、名前と距離が出ます。
+                一覧を押すか、地図の点をタップして「ここを目的地にする」を選ぶと、
+                道順が表示されます。
               </p>
             </div>
           )}

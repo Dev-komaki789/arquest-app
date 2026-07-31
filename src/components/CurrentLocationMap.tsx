@@ -62,6 +62,9 @@ import {
   type PoiCategory,
 } from "@/lib/poi";
 
+// 経路の点の型
+import type { RouteCoordinate } from "@/lib/osrm";
+
 /**
  * 地図の「見た目」の設定ファイルの場所（CARTO社が無料公開しているもの）。
  * APIキーの登録が不要なので、まずはこれで動作確認するのが早い。
@@ -98,6 +101,10 @@ const TRAIL_LAYER_ID = "walk-trail-line";
 const POI_SOURCE_ID = "nearby-pois";
 const POI_LAYER_ID = "nearby-pois-circle";
 
+/** 目的地までの道順（線）用の名前 */
+const ROUTE_SOURCE_ID = "destination-route";
+const ROUTE_LAYER_ID = "destination-route-line";
+
 /** 仕様書 4章のスカイブルー。マーカーと円で共通に使う */
 const BRAND_BLUE = "#5B8DEF";
 
@@ -107,6 +114,9 @@ const BRAND_BLUE = "#5B8DEF";
  * 「歩いた記録＝ごほうび」という仕様書の色の意味づけにも合う。
  */
 const BRAND_GOLD = "#F5B942";
+
+/** 仕様書 4章の濃いスカイブルー。目的地までの道順に使う */
+const BRAND_DARK_BLUE = "#3E6FD8";
 
 /**
  * スポットの点を、カテゴリごとに色分けするための指定。
@@ -164,6 +174,14 @@ type Props = {
   accuracy: number; // 精度（誤差の半径・メートル）
   trail: TrailPoint[]; // 歩いた軌跡（間引き済みの点の並び）
   pois: Poi[]; // 周辺のスポット（未検索なら空の配列）
+  destination: Poi | null; // 目指しているスポット（未設定なら null）
+  routeCoordinates: RouteCoordinate[]; // 道なりの経路（未取得なら空の配列）
+  /**
+   * 地図上のスポットで「ここを目的地にする」が押されたときに呼ばれる。
+   * 親（page.tsx）から処理を渡してもらう形にして、
+   * この部品は「押されたことを伝える」だけに留めている。
+   */
+  onSelectDestination: (poi: Poi) => void;
 };
 
 export default function CurrentLocationMap({
@@ -172,6 +190,9 @@ export default function CurrentLocationMap({
   accuracy,
   trail,
   pois,
+  destination,
+  routeCoordinates,
+  onSelectDestination,
 }: Props) {
   // ------------------------------------------------------------
   // useRef で「箱」を用意する
@@ -191,8 +212,22 @@ export default function CurrentLocationMap({
   // 生成した地図の本体を覚えておく箱。まだ無いので最初は null。
   const mapRef = useRef<MapLibreMap | null>(null);
 
-  // マーカー（ピン）を覚えておく箱。
+  // 現在地のマーカー（ピン）を覚えておく箱。
   const markerRef = useRef<Marker | null>(null);
+
+  // 目的地のマーカーを覚えておく箱。
+  // 目的地は決めたり取り消したりするので、付け外しできるよう別に持つ。
+  const destinationMarkerRef = useRef<Marker | null>(null);
+
+  // 「ここを目的地にする」が押されたときの処理を覚えておく箱。
+  //
+  // 地図のクリック処理は最初の1回だけ登録される。
+  // その中から props を直接読むと、最初に渡された古い関数を
+  // ずっと使い続けてしまうため、箱を経由して常に最新を読む。
+  const onSelectDestinationRef = useRef(onSelectDestination);
+  useEffect(() => {
+    onSelectDestinationRef.current = onSelectDestination;
+  }, [onSelectDestination]);
 
   // 最新の位置を覚えておく箱。
   // 地図の準備完了（load）は少し遅れて起きるため、そのときに
@@ -342,6 +377,29 @@ export default function CurrentLocationMap({
       });
 
       // ------------------------------------------------------------
+      // 目的地までの道順（線）
+      // ------------------------------------------------------------
+      // 軌跡（歩いた跡）の上、スポットの点の下に描く。
+      map.addSource(ROUTE_SOURCE_ID, {
+        type: "geojson",
+        data: createTrailLine([]), // 最初は空。目的地が決まったら差し替える
+      });
+      map.addLayer({
+        id: ROUTE_LAYER_ID,
+        type: "line",
+        source: ROUTE_SOURCE_ID,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": BRAND_DARK_BLUE,
+          "line-width": 5,
+          "line-opacity": 0.75,
+          // 破線にする。金色の実線（歩いた跡＝過去）と見分けるため。
+          // 数字は [線の長さ, 空白の長さ] を線の太さ倍で指定する。
+          "line-dasharray": [1.5, 1],
+        },
+      });
+
+      // ------------------------------------------------------------
       // 周辺スポット（点）
       // ------------------------------------------------------------
       // 最後に登録することで、いちばん手前に描かれ、クリックしやすくなる。
@@ -397,10 +455,34 @@ export default function CurrentLocationMap({
         detail.textContent = `${info?.label ?? category}・約${distanceM}m`;
         container.appendChild(detail);
 
-        new Popup({ closeButton: false, offset: 12 })
+        const popup = new Popup({ closeButton: false, offset: 12 })
           .setLngLat(feature.geometry.coordinates as [number, number])
           .setDOMContent(container)
           .addTo(map);
+
+        // --- 「ここを目的地にする」ボタン ---
+        const button = document.createElement("button");
+        button.textContent = "ここを目的地にする";
+        button.style.marginTop = "8px";
+        button.style.width = "100%";
+        button.style.padding = "6px 10px";
+        button.style.borderRadius = "8px";
+        button.style.border = "none";
+        button.style.background = BRAND_DARK_BLUE;
+        button.style.color = "#FFFFFF";
+        button.style.fontWeight = "bold";
+        button.style.cursor = "pointer";
+
+        button.addEventListener("click", () => {
+          // properties は地図用に平らにした値なので、
+          // 元のスポット情報を id で探し直して渡す。
+          // こうすると、親には欠けのない Poi がそのまま届く。
+          const id = String(feature.properties?.id ?? "");
+          const poi = latestRef.current.pois.find((p) => p.id === id);
+          if (poi) onSelectDestinationRef.current(poi);
+          popup.remove(); // 押したら吹き出しは閉じる
+        });
+        container.appendChild(button);
       });
 
       // --- 点の上にカーソルを乗せたら指の形にする（押せると分かるように） ---
@@ -479,6 +561,59 @@ export default function CurrentLocationMap({
       | undefined;
     source?.setData(createPoiFeatureCollection(pois));
   }, [pois]);
+
+  // ------------------------------------------------------------
+  // useEffect その4 … 目的地のマーカーを付け外しする
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // 目的地が取り消された場合は、マーカーを外して終わり
+    if (!destination) {
+      destinationMarkerRef.current?.remove();
+      destinationMarkerRef.current = null;
+      return;
+    }
+
+    // すでにマーカーがあるなら、位置を変えるだけにする。
+    // 作り直すと一瞬消えてから現れて、ちらついて見える。
+    if (destinationMarkerRef.current) {
+      destinationMarkerRef.current.setLngLat([destination.lng, destination.lat]);
+      return;
+    }
+
+    // 目的地は「向かう先」なので、現在地（青）とは別の色にする。
+    // 仕様書§4でゴールドは「ごほうび・強調」の色。目指す先に合う。
+    destinationMarkerRef.current = new Marker({ color: BRAND_GOLD })
+      .setLngLat([destination.lng, destination.lat])
+      // 名前を吹き出しで添える。地図を見ただけでどこを目指しているか分かる。
+      // setText は文字を必ず文字として扱うので、HTMLの細工を心配しなくてよい。
+      .setPopup(new Popup({ offset: 24 }).setText(destination.name))
+      .addTo(map);
+  }, [destination]);
+
+  // ------------------------------------------------------------
+  // useEffect その5 … 道順の線を描き直す
+  // ------------------------------------------------------------
+  useEffect(() => {
+    const source = mapRef.current?.getSource(ROUTE_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    if (!source) return;
+
+    // createTrailLine は { lat, lng } の並びを受け取る作りなので、
+    // OSRMの [経度, 緯度] を詰め替えてから渡す。
+    // 線を描く処理を1か所にまとめておけるので、変換のほうを合わせる。
+    source.setData(
+      createTrailLine(
+        routeCoordinates.map(([lngValue, latValue]) => ({
+          lat: latValue,
+          lng: lngValue,
+        })),
+      ),
+    );
+  }, [routeCoordinates]);
 
   // ------------------------------------------------------------
   // 画面に表示する部分

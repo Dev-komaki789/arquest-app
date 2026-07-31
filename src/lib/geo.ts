@@ -160,6 +160,94 @@ export function createTrailLine(
 }
 
 /**
+ * 2地点間の「方角」を求める（0〜360度。0が北、90が東）。
+ *
+ * ■ 何のために使う？
+ *   仕様書の画面5「目的地まで移動中」は、
+ *   道順を教えすぎず「距離・方角のみ表示」する設計になっている。
+ *   その方角がこれ。
+ *
+ * ■ なぜ単純に引き算では駄目なのか
+ *   地球は丸いので、経度の差がそのまま東西の距離にならない
+ *   （高緯度ほど経線の間隔が狭い）。
+ *   その補正を含んだ、球面上での方角を求める式を使う。
+ */
+export function bearingInDegrees(
+  latA: number,
+  lngA: number,
+  latB: number,
+  lngB: number,
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+  const latARad = toRad(latA);
+  const latBRad = toRad(latB);
+  const deltaLng = toRad(lngB - lngA);
+
+  const y = Math.sin(deltaLng) * Math.cos(latBRad);
+  const x =
+    Math.cos(latARad) * Math.sin(latBRad) -
+    Math.sin(latARad) * Math.cos(latBRad) * Math.cos(deltaLng);
+
+  // atan2 は -180〜180 の範囲で返るので、+360して%360で 0〜360 に直す
+  const degrees = (Math.atan2(y, x) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+/** 8方位の名前。北から時計回りに45度ずつ */
+const COMPASS_NAMES = [
+  "北",
+  "北東",
+  "東",
+  "南東",
+  "南",
+  "南西",
+  "西",
+  "北西",
+] as const;
+
+/** 8方位の矢印。COMPASS_NAMES と同じ並び */
+const COMPASS_ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"] as const;
+
+/**
+ * 角度を「北東 ↗」のような表示にする。
+ *
+ * 度数をそのまま「47度の方向」と出しても人は動けない。
+ * 8方位に丸めて、矢印を添える。
+ *
+ * 45で割って四捨五入すると、0〜7の番号になる
+ * （例: 47度 → 47/45 = 1.04 → 1 → 北東）。
+ * 360度付近は8になってしまうので、%8 で0（北）に戻す。
+ */
+export function formatBearing(degrees: number): {
+  name: string;
+  arrow: string;
+} {
+  const index = Math.round(degrees / 45) % 8;
+  return { name: COMPASS_NAMES[index], arrow: COMPASS_ARROWS[index] };
+}
+
+/**
+ * 歩く速さ（メートル／分）。
+ *
+ * 80m/分は、日本の不動産広告で「徒歩◯分」を計算するときの標準値
+ * （時速4.8km）。誰もが見慣れている基準なので、これに合わせる。
+ *
+ * OSRMの公開デモサーバーは徒歩を指定しても自動車の所要時間を返すため、
+ * 時間はこちらで計算する（詳しくは src/lib/osrm.ts を参照）。
+ */
+const WALKING_SPEED_M_PER_MIN = 80;
+
+/**
+ * 距離から徒歩の所要時間を見積もって、文字列で返す。
+ * 1分未満でも「約1分」と出す（「約0分」は意味が通らないため）。
+ */
+export function formatWalkingDuration(meters: number): string {
+  const minutes = Math.max(1, Math.round(meters / WALKING_SPEED_M_PER_MIN));
+  return `約${minutes}分`;
+}
+
+/**
  * メートルの数値を、人が読みやすい文字列にする。
  *
  * 1km未満はメートル、それ以上はキロメートルで表示する。
