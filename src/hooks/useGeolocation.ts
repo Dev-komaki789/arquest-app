@@ -1,20 +1,28 @@
 /**
  * ============================================================
- * useGeolocation — 現在地を取得するための「カスタムフック」
+ * useGeolocation — 現在地を取得し、移動に追従するカスタムフック
  * ============================================================
  *
  * ■ このファイルは何をするもの？
  *   ブラウザに「今どこにいる？」と聞いて、緯度・経度を教えてもらう処理をまとめたもの。
+ *   一度きりの取得ではなく、位置が変わるたびに自動で教えてもらう「追従」を行う。
  *
  * ■ 「カスタムフック」とは？
  *   React で使い回したい処理を、関数として切り出したもの。
  *   名前を必ず「use」で始めるのがルール（例: useState、useGeolocation）。
  *   画面（page.tsx）側は中身を知らなくても、1行呼ぶだけで位置情報が使えるようになる。
  *
- * ■ なぜ画面と分けるの？
- *   「位置を取る処理」と「画面に表示する処理」を混ぜると、
- *   あとで画面が増えたときに同じコードを何度も書くことになる。
- *   分けておけば、他の画面でも `useGeolocation()` の1行で再利用できる。
+ * ■ getCurrentPosition と watchPosition の違い（このファイルの要点）
+ *   getCurrentPosition … 今の位置を1回だけ教えてくれる
+ *   watchPosition      … 位置が変わるたびに、何度も教えてくれる（追従）
+ *
+ *   このアプリは「目的地に近づいたか」を見張り続ける必要があるため
+ *   （仕様書 2.3 到達判定）、watchPosition を使う。
+ *
+ * ■ 追従には必ず後片付けが要る
+ *   watchPosition は、止めるまでずっと位置を測り続ける。
+ *   放置すると画面を離れてもGPSが回り続け、利用者の電池を消耗させてしまう。
+ *   そのため clearWatch で止める処理を必ず用意する。
  */
 
 // "use client" = このファイルはブラウザ側で動く、という宣言。
@@ -24,8 +32,10 @@
 
 // React が用意している道具（フック）を読み込む。
 //   useState    … 値を記憶して、変わったら画面を描き直してくれる箱
-//   useCallback … 関数を毎回作り直さないようにする（後述）
-import { useCallback, useState } from "react";
+//   useCallback … 関数を毎回作り直さないようにする
+//   useEffect   … 後片付けなど「表示の前後で行う処理」を書く場所
+//   useRef      … 画面の描き直しとは無関係に値を覚えておく箱
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * 取得した位置情報の「型」。
@@ -45,14 +55,14 @@ export type GeoPosition = {
 /**
  * 今どういう状態かを表す型。
  * 「|」は「このうちのどれか1つ」という意味（ユニオン型と呼ぶ）。
- * 文字列を直接書くので、"succes" のようなタイプミスもエディタが弾いてくれる。
+ * 文字列を直接書くので、"trackng" のようなタイプミスもエディタが弾いてくれる。
  *
- *   idle       … まだ何もしていない（ボタンを押す前）
+ *   idle       … まだ何もしていない（ボタンを押す前）／停止した後
  *   requesting … 取得中（許可ダイアログが出ている最中など）
- *   success    … 取得できた
+ *   tracking   … 追従中（位置が変わるたびに更新されている）
  *   error      … 失敗した
  */
-type Status = "idle" | "requesting" | "success" | "error";
+export type GeoStatus = "idle" | "requesting" | "tracking" | "error";
 
 /**
  * エラー番号を、日本語のメッセージに翻訳するための対応表。
@@ -64,23 +74,44 @@ type Status = "idle" | "requesting" | "success" | "error";
  */
 const ERROR_MESSAGES: Record<number, string> = {
   // 1 = PERMISSION_DENIED（許可されなかった）
-  1: "位置情報が許可されませんでした。ブラウザの設定から許可してください。",
+  // ブラウザの設定と、Mac本体の設定（システム設定 → プライバシーとセキュリティ →
+  // 位置情報サービス）の両方が原因になりうるので、両方に触れておく。
+  1: "位置情報が許可されませんでした。ブラウザの設定と、Macのシステム設定（プライバシーとセキュリティ → 位置情報サービス）を確認してください。",
   // 2 = POSITION_UNAVAILABLE（電波やGPSの状態で測位できなかった）
-  2: "位置を取得できませんでした。電波やGPSの状態を確認してください。",
+  2: "位置を取得できませんでした。Wi-FiやGPSの状態を確認してください。",
   // 3 = TIMEOUT（時間内に返ってこなかった）
   3: "位置の取得に時間がかかりすぎました。もう一度お試しください。",
 };
 
 /**
+ * 位置情報の取得方法のオプション。
+ * 3つとも意味があるので消さないこと。
+ */
+const GEO_OPTIONS: PositionOptions = {
+  // GPSなど高精度な手段を使う。電池は食うが、
+  // このアプリは半径100mの到達判定をするので精度が必要。
+  enableHighAccuracy: true,
+
+  // 15秒待って返ってこなければ諦める（`15_000` は 15000 と同じ。読みやすさのための区切り）。
+  // 無制限にすると、画面が「取得中…」のまま永久に固まってしまう。
+  timeout: 15_000,
+
+  // 保存済みの古い位置を使わせない設定。
+  // 古い座標で「到着した」と判定されると困るので 0（＝キャッシュ禁止）にする。
+  maximumAge: 0,
+};
+
+/**
  * 本体。画面側では次のように使う。
  *
- *   const { position, error, status, request } = useGeolocation();
+ *   const { position, error, status, start, stop } = useGeolocation();
  *
- * 返ってくる4つ:
- *   position … 取得できた位置（まだなら null）
+ * 返ってくるもの:
+ *   position … 最新の位置（まだ取得していなければ null）
  *   error    … エラーメッセージ（無ければ null）
- *   status   … 今の状態（ボタンの文字を変えるのに使う）
- *   request  … 位置の取得を始める関数（ボタンの onClick に渡す）
+ *   status   … 今の状態（ボタンの文字や色を変えるのに使う）
+ *   start    … 追従を開始する関数（ボタンの onClick に渡す）
+ *   stop     … 追従を停止する関数
  */
 export function useGeolocation() {
   // ------------------------------------------------------------
@@ -91,7 +122,7 @@ export function useGeolocation() {
   // ポイント: ただの変数（let position = null）ではダメ。
   // useState で作った値を変えたときだけ、React が画面を描き直してくれる。
 
-  // 取得した位置。最初はまだ無いので null。
+  // 最新の位置。最初はまだ無いので null。
   // <GeoPosition | null> は「GeoPosition か null のどちらかが入る」という指定。
   const [position, setPosition] = useState<GeoPosition | null>(null);
 
@@ -99,21 +130,50 @@ export function useGeolocation() {
   const [error, setError] = useState<string | null>(null);
 
   // 今の状態。最初は「まだ何もしていない」。
-  const [status, setStatus] = useState<Status>("idle");
+  const [status, setStatus] = useState<GeoStatus>("idle");
 
   // ------------------------------------------------------------
-  // 位置情報の取得を開始する関数
+  // 追従を止めるための「番号」を覚えておく箱
+  // ------------------------------------------------------------
+  // watchPosition を呼ぶと、見張りごとに番号（ID）が返ってくる。
+  // 止めるときは clearWatch(その番号) と指定する必要があるため、覚えておく。
+  //
+  // useState ではなく useRef を使う理由:
+  //   この番号は画面に表示するものではない。
+  //   useState に入れると値を変えるたびに画面が描き直されて無駄になる。
+  //   useRef は「変えても画面が描き直されない箱」なので、こちらが適切。
+  //   中身の読み書きには `.current` を付ける。
+  const watchIdRef = useRef<number | null>(null);
+
+  // ------------------------------------------------------------
+  // 追従を停止する
+  // ------------------------------------------------------------
+  const stop = useCallback(() => {
+    // まだ見張っていなければ何もしない
+    if (watchIdRef.current === null) return;
+
+    // 見張りを解除する（これでGPSが止まり、電池の消耗も止まる）
+    navigator.geolocation.clearWatch(watchIdRef.current);
+    watchIdRef.current = null;
+
+    // 状態を「何もしていない」に戻す。
+    // ここで position は消さない。直前まで居た場所を画面に残したままにして、
+    // 「止めたら地図が消えた」という分かりにくい挙動を避ける。
+    setStatus("idle");
+  }, []);
+
+  // ------------------------------------------------------------
+  // 追従を開始する
   // ------------------------------------------------------------
   // useCallback で包む理由:
   //   React は状態が変わるたびに、この useGeolocation を丸ごと再実行する。
-  //   普通に書くと request 関数が毎回「別物」として作り直されてしまう。
+  //   普通に書くと start 関数が毎回「別物」として作り直されてしまう。
   //   useCallback で包むと同じ関数を使い回してくれるので、無駄な再描画が減る。
-  //   最後の `[]` は「作り直す条件は無い（ずっと同じものでよい）」という意味。
   //
   // ★重要★ この関数は必ずボタンのクリックなど「利用者の操作」から呼ぶこと。
   //   画面を開いた瞬間に自動で呼ぶと、iPhone の Safari では
   //   許可ダイアログが表示されないことがある（仕様書 5章の注意点）。
-  const request = useCallback(() => {
+  const start = useCallback(() => {
     // --- 事前チェック：そもそも位置情報が使える環境か？ ---
     // 古いブラウザや特殊な環境では navigator.geolocation が存在しない。
     // 無いのに呼ぶとアプリが落ちるので、先に確認して丁寧に終わらせる。
@@ -123,24 +183,33 @@ export function useGeolocation() {
       return; // ここで処理を打ち切る
     }
 
+    // すでに追従中なら、二重に見張らないよう一度止める。
+    // （見張りが二重になると電池を無駄に食い、更新も乱れる）
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+
     // --- 取得開始。画面を「取得中…」の見た目にする ---
     setStatus("requesting");
     setError(null); // 前回のエラーが残っていたら消す
 
     /**
-     * ブラウザに現在地を1回だけ聞く命令。
+     * 位置が変わるたびに教えてもらうよう、ブラウザに見張りを頼む。
      *
      * 注意: この関数は「答えを待たずにすぐ次へ進む」（非同期処理という）。
      *       だから「成功したら実行してほしい処理」と「失敗したら実行してほしい処理」を
      *       あらかじめ関数の形で渡しておく。これをコールバックと呼ぶ。
      *
      * 引数は3つ:
-     *   第1引数: 成功したときに呼ばれる関数
+     *   第1引数: 位置が分かるたびに呼ばれる関数（何度も呼ばれる）
      *   第2引数: 失敗したときに呼ばれる関数
      *   第3引数: 取得方法のオプション
+     *
+     * 戻り値は見張りの番号。停止に必要なので箱にしまう。
      */
-    navigator.geolocation.getCurrentPosition(
-      // --- 成功したとき。pos にブラウザからの答えが入ってくる ---
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      // --- 位置が分かったとき。pos にブラウザからの答えが入ってくる ---
       (pos) => {
         setPosition({
           // ブラウザ側の名前は latitude / longitude と長いので、
@@ -150,32 +219,69 @@ export function useGeolocation() {
           accuracy: pos.coords.accuracy,
           timestamp: pos.timestamp,
         });
-        setStatus("success");
+        setStatus("tracking");
+        setError(null);
       },
 
-      // --- 失敗したとき。err.code に 1 / 2 / 3 のどれかが入る ---
+      /**
+       * --- 失敗したとき。err.code に 1 / 2 / 3 のどれかが入る ---
+       *
+       * ★重要な設計判断★ エラーの種類で扱いを変える。
+       *
+       * watchPosition は「1回失敗しても見張りは続く」仕様。
+       * ここで毎回 clearWatch すると、実際の利用でひどいことになる。
+       *   ・トンネルや地下に入った
+       *   ・ビルの谷間で一瞬GPSを見失った
+       *   ・DevToolsで座標を切り替えた
+       * こうした一時的な失敗は歩いていれば普通に起きるもので、
+       * そのたびに追従が止まったら、ミッション中に現在地を見失ってしまう。
+       *
+       * そこで、
+       *   許可されていない（code 1） … 利用者が設定を変えない限り絶対に成功しない
+       *                                 → 見張りを止めて、状態も error にする
+       *   一時的な失敗（code 2 / 3） … 待てば直る可能性が高い
+       *                                 → 見張りは続けたまま、お知らせだけ出す
+       * と分けている。次に位置が取れた時点で、お知らせは自動的に消える
+       * （成功時に setError(null) しているため）。
+       */
       (err) => {
-        setStatus("error");
         // `??` は「左が null や undefined なら右を使う」という意味。
         // 表に無い番号が来ても画面が空白にならないよう、保険として元のメッセージを出す。
         setError(ERROR_MESSAGES[err.code] ?? err.message);
+
+        // 許可されなかった場合だけ、見張りを止めて「エラー」状態にする。
+        // err.PERMISSION_DENIED は 1 のこと。数字を直接書くより意味が伝わる。
+        if (err.code === err.PERMISSION_DENIED) {
+          setStatus("error");
+          if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+          }
+        }
+        // code 2（測位できない）・code 3（時間切れ）のときは、ここで何もしない。
+        // status は "requesting" や "tracking" のままなので追従は継続し、
+        // 電波が回復すれば自動的に位置の更新が再開される。
       },
 
-      // --- 取得方法のオプション（3つとも意味があるので消さないこと） ---
-      {
-        // GPSなど高精度な手段を使う。電池は食うが、
-        // このアプリは半径100mの到達判定をするので精度が必要。
-        enableHighAccuracy: true,
-
-        // 10秒待って返ってこなければ諦める（`10_000` は 10000 と同じ。読みやすさのための区切り）。
-        // 無制限にすると、画面が「取得中…」のまま永久に固まってしまう。
-        timeout: 10_000,
-
-        // 保存済みの古い位置を使わせない設定。
-        // 古い座標で「到着した」と判定されると困るので 0（＝キャッシュ禁止）にする。
-        maximumAge: 0,
-      },
+      GEO_OPTIONS,
     );
+  }, []);
+
+  // ------------------------------------------------------------
+  // 後片付け（このフックを使っている画面が閉じられたとき）
+  // ------------------------------------------------------------
+  // useEffect の中で return した関数は「後片付け」として実行される。
+  // 条件が [] なので、実行されるのは画面が閉じられる（部品が消える）ときだけ。
+  //
+  // これを書かないと、別の画面へ移動した後もGPSが回り続けてしまう。
+  // 「止め忘れ」は位置情報を扱うアプリで最も多いバグのひとつ。
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
   }, []);
 
   // ------------------------------------------------------------
@@ -183,5 +289,5 @@ export function useGeolocation() {
   // ------------------------------------------------------------
   // オブジェクト（{ }）で返しておくと、受け取る側が
   // 必要なものだけ名前を指定して取り出せる。
-  return { position, error, status, request };
+  return { position, error, status, start, stop };
 }

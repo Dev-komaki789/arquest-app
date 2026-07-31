@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\('geojson types:', require\\('./node_modules/@types/geojson/package.json'\\).version\\)\")",
+      "Bash(npm run *)",
+      "Bash(node scripts/copy-maplibre-worker.mjs)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(curl -s -o /dev/null http://localhost:3000/)",
+      "Bash(break)",
+      "Bash(perl -e 'select\\(undef,undef,undef,1\\)')",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"worker: HTTP %{http_code} / %{size_download} bytes / type=%{content_type}\\\\n\" http://localhost:3000/maplibre/maplibre-gl-worker.mjs)"
+    ]
+  }
+}
