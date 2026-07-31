@@ -113,7 +113,26 @@ const GEO_OPTIONS: PositionOptions = {
  *   start    … 追従を開始する関数（ボタンの onClick に渡す）
  *   stop     … 追従を停止する関数
  */
-export function useGeolocation() {
+/**
+ * useGeolocation に渡せる設定。
+ * `?` が付いているものは省略できる。
+ */
+type Options = {
+  /**
+   * 位置がひとつ届くたびに呼ばれる関数。
+   *
+   * 「位置が届いた瞬間にやりたいこと」を外から差し込むための仕組み。
+   * 今は歩いた軌跡の記録（useWalkTrail の record）を渡している。
+   *
+   * ■ なぜこの形にするのか
+   *   画面側で「position が変わったら記録する」と useEffect で書くこともできるが、
+   *   それだと「描画 → 効果 → state更新 → また描画」という連鎖が起きて無駄が出る。
+   *   位置が届くのは出来事（イベント）なので、届いたその場で処理するのが素直。
+   */
+  onPosition?: (position: GeoPosition) => void;
+};
+
+export function useGeolocation(options: Options = {}) {
   // ------------------------------------------------------------
   // useState で「状態」を3つ用意する
   // ------------------------------------------------------------
@@ -144,6 +163,23 @@ export function useGeolocation() {
   //   useRef は「変えても画面が描き直されない箱」なので、こちらが適切。
   //   中身の読み書きには `.current` を付ける。
   const watchIdRef = useRef<number | null>(null);
+
+  // ------------------------------------------------------------
+  // 「位置が届いたときに呼ぶ関数」を箱に入れておく
+  // ------------------------------------------------------------
+  // なぜ箱（useRef）に入れるのか:
+  //   下の start は useCallback で「作り直さない」ようにしてある。
+  //   その中から options.onPosition を直接読むと、
+  //   最初に渡された古い関数を掴んだままになってしまう。
+  //   箱を経由して常に最新を読むことで、この食い違いを防ぐ。
+  //
+  // 箱の中身を入れ替えるのは useEffect の中で行う。
+  // 画面を組み立てている最中（描画中）に箱を書き換えると、
+  // Reactが変化を追えなくなるため禁止されている。
+  const onPositionRef = useRef(options.onPosition);
+  useEffect(() => {
+    onPositionRef.current = options.onPosition;
+  }, [options.onPosition]);
 
   // ------------------------------------------------------------
   // 追従を停止する
@@ -211,16 +247,22 @@ export function useGeolocation() {
     watchIdRef.current = navigator.geolocation.watchPosition(
       // --- 位置が分かったとき。pos にブラウザからの答えが入ってくる ---
       (pos) => {
-        setPosition({
-          // ブラウザ側の名前は latitude / longitude と長いので、
-          // アプリ内では lat / lng という短い名前に詰め替えておく。
+        // ブラウザ側の名前は latitude / longitude と長いので、
+        // アプリ内では lat / lng という短い名前に詰め替えておく。
+        const next: GeoPosition = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
           timestamp: pos.timestamp,
-        });
+        };
+
+        setPosition(next);
         setStatus("tracking");
         setError(null);
+
+        // 位置が届いたその場で、外から渡された処理を実行する。
+        // `?.` は「渡されていなければ何もしない」という書き方。
+        onPositionRef.current?.(next);
       },
 
       /**

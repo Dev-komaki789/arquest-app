@@ -124,3 +124,53 @@ export function distanceInMeters(
 
   return EARTH_RADIUS_M * c;
 }
+
+/**
+ * 歩いた軌跡（点の並び）を、地図に描ける線の形に変換する。
+ *
+ * ■ なぜ Feature ではなく FeatureCollection を返すのか
+ *   線（LineString）は最低2点ないと成立しない。
+ *   歩き始めの0点・1点の状態でも地図側でエラーにならないよう、
+ *   「地物の入れ物」である FeatureCollection を返し、
+ *   点が足りないときは中身が空の入れ物を渡す作りにしている。
+ *   こうすると地図側は「あるかどうか」を気にせず、いつでも同じ処理で更新できる。
+ */
+export function createTrailLine(
+  points: { lat: number; lng: number }[],
+): GeoJSON.FeatureCollection {
+  // 2点未満なら、中身が空の入れ物を返す（＝何も描かれない）
+  if (points.length < 2) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: {
+          type: "LineString", // 点を順番に繋いだ線
+          // ★MapLibreは [経度, 緯度] の順。map() で全点を変換する
+          coordinates: points.map((p) => [p.lng, p.lat]),
+        },
+        properties: {},
+      },
+    ],
+  };
+}
+
+/**
+ * メートルの数値を、人が読みやすい文字列にする。
+ *
+ * 1km未満はメートル、それ以上はキロメートルで表示する。
+ * 「1234.5678 m」のような表示は読みにくく、
+ * 歩いた実感とも合わないため、桁を丸めて出す。
+ */
+export function formatDistance(meters: number): string {
+  if (meters < 1000) {
+    // Math.round で小数を四捨五入。歩行距離に小数点以下は不要
+    return `${Math.round(meters)} m`;
+  }
+  // toFixed(2) で小数第2位まで（例: 1.23 km）
+  return `${(meters / 1000).toFixed(2)} km`;
+}

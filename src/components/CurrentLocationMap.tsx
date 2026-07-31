@@ -47,8 +47,11 @@ import {
 // ズームボタンやマーカーの見た目が崩れる（よくあるミス）。
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// 誤差の円を作る自作の関数（src/lib/geo.ts）
-import { createCircle } from "@/lib/geo";
+// 誤差の円・軌跡の線を作る自作の関数（src/lib/geo.ts）
+import { createCircle, createTrailLine } from "@/lib/geo";
+
+// 軌跡の点の型（src/hooks/useWalkTrail.ts で定義）
+import type { TrailPoint } from "@/hooks/useWalkTrail";
 
 /**
  * 地図の「見た目」の設定ファイルの場所（CARTO社が無料公開しているもの）。
@@ -78,8 +81,19 @@ const CIRCLE_SOURCE_ID = "accuracy-circle"; // データそのもの
 const CIRCLE_FILL_LAYER_ID = "accuracy-circle-fill"; // 内側の塗り
 const CIRCLE_LINE_LAYER_ID = "accuracy-circle-line"; // 輪郭の線
 
+/** 歩いた軌跡（線）用の名前 */
+const TRAIL_SOURCE_ID = "walk-trail";
+const TRAIL_LAYER_ID = "walk-trail-line";
+
 /** 仕様書 4章のスカイブルー。マーカーと円で共通に使う */
 const BRAND_BLUE = "#5B8DEF";
+
+/**
+ * 仕様書 4章のゴールド。歩いた軌跡に使う。
+ * 現在地（青）と役割が違うので、色も分ける。
+ * 「歩いた記録＝ごほうび」という仕様書の色の意味づけにも合う。
+ */
+const BRAND_GOLD = "#F5B942";
 
 /**
  * MapLibreの「ワーカー」の置き場所（public/maplibre/ にコピーしてある）。
@@ -108,9 +122,15 @@ type Props = {
   lat: number; // 緯度
   lng: number; // 経度
   accuracy: number; // 精度（誤差の半径・メートル）
+  trail: TrailPoint[]; // 歩いた軌跡（間引き済みの点の並び）
 };
 
-export default function CurrentLocationMap({ lat, lng, accuracy }: Props) {
+export default function CurrentLocationMap({
+  lat,
+  lng,
+  accuracy,
+  trail,
+}: Props) {
   // ------------------------------------------------------------
   // useRef で「箱」を用意する
   // ------------------------------------------------------------
@@ -135,7 +155,7 @@ export default function CurrentLocationMap({ lat, lng, accuracy }: Props) {
   // 最新の位置を覚えておく箱。
   // 地図の準備完了（load）は少し遅れて起きるため、そのときに
   // 「今の位置」を参照できるようにしておく必要がある。
-  const latestRef = useRef({ lat, lng, accuracy });
+  const latestRef = useRef({ lat, lng, accuracy, trail });
 
   // ------------------------------------------------------------
   // useState … 画面に出したい「地図の様子」
@@ -150,8 +170,8 @@ export default function CurrentLocationMap({ lat, lng, accuracy }: Props) {
   // ------------------------------------------------------------
   // props が変わるたびに実行し、いつでも「今の位置」が読めるようにする。
   useEffect(() => {
-    latestRef.current = { lat, lng, accuracy };
-  }, [lat, lng, accuracy]);
+    latestRef.current = { lat, lng, accuracy, trail };
+  }, [lat, lng, accuracy, trail]);
 
   // ------------------------------------------------------------
   // useEffect その1 … 地図を作る（最初の1回だけ）
@@ -215,7 +235,38 @@ export default function CurrentLocationMap({ lat, lng, accuracy }: Props) {
     map.on("load", () => {
       setIsLoaded(true);
 
-      const { lat: curLat, lng: curLng, accuracy: curAccuracy } = latestRef.current;
+      const {
+        lat: curLat,
+        lng: curLng,
+        accuracy: curAccuracy,
+        trail: curTrail,
+      } = latestRef.current;
+
+      // ------------------------------------------------------------
+      // 歩いた軌跡（線）
+      // ------------------------------------------------------------
+      // ★先に登録する理由★
+      //   MapLibreでは「あとから足した層が上に描かれる」。
+      //   軌跡を先に、現在地の円をあとに登録することで、
+      //   円が軌跡の上に重なり、今どこにいるかが見失われないようにしている。
+      map.addSource(TRAIL_SOURCE_ID, {
+        type: "geojson",
+        data: createTrailLine(curTrail),
+      });
+      map.addLayer({
+        id: TRAIL_LAYER_ID,
+        type: "line",
+        source: TRAIL_SOURCE_ID,
+        layout: {
+          // 線の端と角を丸くする。曲がり角がとがって見えるのを防ぐ
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": BRAND_GOLD,
+          "line-width": 4,
+        },
+      });
 
       // ① データを登録する（何を描くか）
       map.addSource(CIRCLE_SOURCE_ID, {
@@ -289,10 +340,19 @@ export default function CurrentLocationMap({ lat, lng, accuracy }: Props) {
     // ③ 誤差の円を描き直す。
     // 円は地図の読み込み完了後に登録されるので、まだ無い場合もある。
     // getSource で取り出せたときだけ更新する。
-    const source = map.getSource(CIRCLE_SOURCE_ID) as GeoJSONSource | undefined;
+    const circleSource = map.getSource(CIRCLE_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
     // setData はデータの差し替え。図形を消して作り直すより軽い。
-    source?.setData(createCircle(lat, lng, accuracy));
-  }, [lat, lng, accuracy]);
+    circleSource?.setData(createCircle(lat, lng, accuracy));
+
+    // ④ 歩いた軌跡を描き直す。
+    // 点が増えるたびに線が伸びていく。
+    const trailSource = map.getSource(TRAIL_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    trailSource?.setData(createTrailLine(trail));
+  }, [lat, lng, accuracy, trail]);
 
   // ------------------------------------------------------------
   // 画面に表示する部分
@@ -331,7 +391,7 @@ export default function CurrentLocationMap({ lat, lng, accuracy }: Props) {
           黙って白い地図になるのを防ぐため、原因を画面に出す。
           break-words は、長い英語のエラー文が枠を突き破らないようにする指定。 */}
       {loadError && (
-        <p className="absolute left-3 right-3 top-3 z-10 break-words rounded-lg bg-[#FFF3DE] px-3 py-2 text-xs text-[#1E2A4A] shadow">
+        <p className="absolute left-3 right-3 top-3 z-10 wrap-break-word rounded-lg bg-[#FFF3DE] px-3 py-2 text-xs text-[#1E2A4A] shadow">
           {loadError}
         </p>
       )}

@@ -36,6 +36,18 @@ import dynamic from "next/dynamic";
 // これが無いと `../hooks/useGeolocation` のような相対パスを書く必要がある。
 import { useGeolocation } from "@/hooks/useGeolocation";
 
+// 歩いた軌跡と距離を記録するフック。
+// 間引きの基準値も読み込んで、画面の説明文に使う
+// （数字を直接書くと、基準を変えたときに説明とズレるため）。
+import {
+  useWalkTrail,
+  MAX_ACCEPTABLE_ACCURACY_M,
+  MIN_MOVE_M,
+} from "@/hooks/useWalkTrail";
+
+// メートルを読みやすい文字列にする関数（例: 1234 → "1.23 km"）
+import { formatDistance } from "@/lib/geo";
+
 /**
  * 地図の部品を読み込む。
  *
@@ -73,7 +85,16 @@ export default function Home() {
   // フックを呼ぶだけで、位置情報に必要なものが手に入る。
   // { } で囲んで受け取るのは「分割代入」。
   // 返ってきたオブジェクトから、名前を指定して取り出している。
-  const { position, error, status, start, stop } = useGeolocation();
+  // 歩いた記録を担当するフック。
+  // record は「位置がひとつ届いたときに呼んでほしい処理」。
+  const { trail, totalDistanceM, ignoredCount, record, reset } = useWalkTrail();
+
+  // 位置を取得するフック。record を渡しておくと、
+  // 位置が届いた瞬間に記録まで済む。
+  // 「取得する係」と「記録する係」を、この1行で繋いでいる。
+  const { position, error, status, start, stop } = useGeolocation({
+    onPosition: record,
+  });
 
   // 追従中かどうかを、あとで何度も使うので変数にしておく。
   // こうしておくと status の文字列をあちこちに書かずに済み、打ち間違いも防げる。
@@ -227,6 +248,7 @@ export default function Home() {
           lat={position.lat}
           lng={position.lng}
           accuracy={position.accuracy}
+          trail={trail}
         />
       )}
 
@@ -240,6 +262,73 @@ export default function Home() {
             dd … その値
           font-mono（等幅フォント）にしているのは、
           数字の桁が揃って読みやすくなるため。 */}
+      {/* ------------------------------------------------------------
+          歩いた記録（累計距離）
+          ------------------------------------------------------------
+          仕様書§6の users.total_distance_m / daily_activity_stats.distance_m
+          にあたる値。いまは画面の中だけで数えていて、まだ保存はしていない。
+
+          ゴールドは仕様書§4で「ごほうび・強調」に割り当てられた色。
+          歩いた記録は達成の証なので、この色を使っている
+          （地図の軌跡の線とも同じ色で揃えてある）。 */}
+      {/* 表示する条件を「記録があるとき」だけにすると、
+          全部間引かれている場合にパネルごと消えてしまい、
+          なぜ記録されないのかが分からなくなる。
+          捨てた点が1件でもあれば表示して、状況が見えるようにする。 */}
+      {(trail.length > 0 || ignoredCount > 0) && (
+        <div className="rounded-xl bg-[#FFF3DE] p-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs text-[#1E2A4A]/70">歩いた距離</p>
+              <p className="font-mono text-2xl font-bold text-[#1E2A4A]">
+                {/* 1km未満はm、それ以上はkmで表示される */}
+                {formatDistance(totalDistanceM)}
+              </p>
+            </div>
+            {/* 記録をやり直すボタン。動作確認のたびに
+                画面を再読み込みしなくて済むように置いている */}
+            <button
+              onClick={reset}
+              className="rounded-lg border border-[#1E2A4A]/20 px-3 py-1.5 text-xs text-[#1E2A4A] active:bg-[#1E2A4A]/10"
+            >
+              記録をリセット
+            </button>
+          </div>
+
+          {/* 内訳。間引きが効いていることを目で確認できるようにしておく。
+              完成時には消してよい開発用の表示。 */}
+          <p className="mt-2 text-xs leading-relaxed text-[#1E2A4A]/70">
+            記録した地点 {trail.length} 件／間引いた地点 {ignoredCount} 件
+            <br />
+            精度±{MAX_ACCEPTABLE_ACCURACY_M}mより粗い点と、前回から
+            {MIN_MOVE_M}m未満しか動いていない点は距離に数えていません。
+            {/* 開発中は基準を緩めてあるので、それが分かるようにしておく。
+                本番（npm run build 後）は ±50m に戻る。 */}
+            {MAX_ACCEPTABLE_ACCURACY_M > 50 && (
+              <>
+                <br />
+                （開発中のため精度の基準を緩めています。本番では±50mです）
+              </>
+            )}
+          </p>
+
+          {/* ------------------------------------------------------------
+              全部間引かれているときの原因表示
+              ------------------------------------------------------------
+              1件も記録できていないのに捨てた点だけがある＝
+              条件が厳しすぎて全部弾かれている状態。
+              黙って何も起きないと原因が分からないので、理由を出す。 */}
+          {trail.length === 0 && position && (
+            <p className="mt-2 rounded-lg bg-white p-2 text-xs leading-relaxed text-[#1E2A4A]">
+              いまの位置の精度は ±{Math.round(position.accuracy)} m です。
+              {position.accuracy > MAX_ACCEPTABLE_ACCURACY_M
+                ? `基準の ±${MAX_ACCEPTABLE_ACCURACY_M}m より粗いため、すべて記録対象外になっています。`
+                : "基準は満たしています。"}
+            </p>
+          )}
+        </div>
+      )}
+
       {position && (
         <dl className="rounded-xl bg-[#1E2A4A] p-4 font-mono text-sm text-white">
           <div className="flex justify-between">
