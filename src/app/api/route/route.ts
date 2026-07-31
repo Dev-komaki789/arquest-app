@@ -20,7 +20,7 @@
 
 import { NextRequest } from "next/server";
 
-import { fetchWalkingRoute, type WalkingRoute } from "@/lib/osrm";
+import { fetchWalkingRoute, type WalkingRoute } from "@/lib/routing";
 
 /**
  * キャッシュを保持する時間（ミリ秒）。

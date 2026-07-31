@@ -234,7 +234,7 @@ export function formatBearing(degrees: number): {
  * （時速4.8km）。誰もが見慣れている基準なので、これに合わせる。
  *
  * OSRMの公開デモサーバーは徒歩を指定しても自動車の所要時間を返すため、
- * 時間はこちらで計算する（詳しくは src/lib/osrm.ts を参照）。
+ * 時間はこちらで計算する（詳しくは src/lib/routing.ts を参照）。
  */
 const WALKING_SPEED_M_PER_MIN = 80;
 

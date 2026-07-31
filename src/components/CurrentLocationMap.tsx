@@ -63,7 +63,7 @@ import {
 } from "@/lib/poi";
 
 // 経路の点の型
-import type { RouteCoordinate } from "@/lib/osrm";
+import type { RouteCoordinate } from "@/lib/routing";
 
 /**
  * 地図の「見た目」の設定ファイルの場所（CARTO社が無料公開しているもの）。

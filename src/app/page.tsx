@@ -125,6 +125,7 @@ export default function Home() {
     destination,
     routeCoordinates,
     routeDistanceM,
+    routeProfile,
     routeStatus,
     routeError,
     selectDestination,
@@ -385,13 +386,25 @@ export default function Home() {
             )}
 
             {routeStatus === "success" && routeDistanceM !== null && (
-              <p>
-                道なり {formatDistance(routeDistanceM)}・徒歩
-                {formatWalkingDuration(routeDistanceM)}
-                <span className="ml-2 text-xs text-white/50">
-                  （青い破線）
-                </span>
-              </p>
+              <>
+                <p>
+                  道なり {formatDistance(routeDistanceM)}・徒歩
+                  {formatWalkingDuration(routeDistanceM)}
+                  <span className="ml-2 text-xs text-white/50">
+                    （青い破線）
+                  </span>
+                </p>
+
+                {/* 歩行者用の経路が使えず、自動車用で代替したときの注意書き。
+                    自動車の経路は一方通行や進入禁止を避けるため遠回りになる。
+                    「なぜ遠回りなのか」が分からないまま歩かされるのを防ぐ。 */}
+                {routeProfile === "car" && (
+                  <p className="mt-1 text-xs leading-relaxed text-[#F5B942]">
+                    歩行者用の経路サービスが応答しなかったため、自動車用の道順を表示しています。
+                    実際にはもっと近道があるかもしれません。
+                  </p>
+                )}
+              </>
             )}
 
             {/* 道順が引けなくても、上の直線距離と方角だけで歩ける。
