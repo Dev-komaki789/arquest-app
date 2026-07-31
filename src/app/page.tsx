@@ -45,8 +45,14 @@ import {
   MIN_MOVE_M,
 } from "@/hooks/useWalkTrail";
 
+// 周辺スポットを検索するフック
+import { useNearbyPois } from "@/hooks/useNearbyPois";
+
 // メートルを読みやすい文字列にする関数（例: 1234 → "1.23 km"）
 import { formatDistance } from "@/lib/geo";
+
+// カテゴリの名前と色
+import { POI_CATEGORY_INFO } from "@/lib/poi";
 
 /**
  * 地図の部品を読み込む。
@@ -96,6 +102,15 @@ export default function Home() {
     onPosition: record,
   });
 
+  // 周辺スポットの検索。位置とは独立して動く（押したときだけ通信する）。
+  const {
+    pois,
+    status: poiStatus,
+    error: poiError,
+    fromCache,
+    search,
+  } = useNearbyPois();
+
   // 追従中かどうかを、あとで何度も使うので変数にしておく。
   // こうしておくと status の文字列をあちこちに書かずに済み、打ち間違いも防げる。
   const isTracking = status === "tracking";
@@ -109,6 +124,13 @@ export default function Home() {
   // 同じ「エラー」でも利用者が取るべき行動が違うので、見せ方を分ける。
   const hasFatalError = status === "error";
   const hasTemporaryIssue = error !== null && !hasFatalError;
+
+  /**
+   * 周辺スポットの検索範囲（メートル）。
+   * 仕様書§6の user_settings.search_radius_m の既定値と同じ。
+   * 将来は設定画面（画面9）のスライダーで変えられるようにする。
+   */
+  const SEARCH_RADIUS_M = 800;
 
   // ここから下（return の中）が、実際に画面に表示される部分。
   // HTMLに見えるがJavaScriptの中に書ける特別な記法で、JSX と呼ぶ。
@@ -249,7 +271,106 @@ export default function Home() {
           lng={position.lng}
           accuracy={position.accuracy}
           trail={trail}
+          pois={pois}
         />
+      )}
+
+      {/* ------------------------------------------------------------
+          周辺スポットの検索（仕様書§8の③）
+          ------------------------------------------------------------
+          位置が取れているときだけ操作できる。
+          ここで見つかった実在スポットが、将来ミッションの目的地になる。 */}
+      {position && (
+        <section className="rounded-xl bg-[#F2F6FF] p-4">
+          <button
+            // 押したときの座標で検索する。
+            // 「押した瞬間の位置」を使いたいので、ここで position を読む。
+            onClick={() =>
+              search(position.lat, position.lng, SEARCH_RADIUS_M)
+            }
+            disabled={poiStatus === "loading"}
+            className="w-full rounded-xl bg-[#3E6FD8] px-4 py-3 font-bold text-white active:bg-[#1E2A4A] disabled:opacity-50"
+          >
+            {poiStatus === "loading"
+              ? "探しています…"
+              : `周辺${SEARCH_RADIUS_M}mのスポットを探す`}
+          </button>
+
+          {/* 検索中の案内。初回は10秒ほどかかることがあるので、
+              待たされている理由を伝えて不安にさせないようにする */}
+          {poiStatus === "loading" && (
+            <p className="mt-2 text-xs text-[#1E2A4A]/70">
+              OpenStreetMapに問い合わせています。初回は10秒ほどかかります。
+            </p>
+          )}
+
+          {/* 失敗したときの表示。回数制限の場合は待つよう伝える文面が返ってくる */}
+          {poiError && (
+            <p className="mt-2 rounded-lg bg-white p-3 text-xs leading-relaxed text-[#1E2A4A]">
+              {poiError}
+            </p>
+          )}
+
+          {/* 結果の要約とカテゴリごとの内訳 */}
+          {poiStatus === "success" && (
+            <div className="mt-3">
+              <p className="text-sm font-bold text-[#1E2A4A]">
+                {pois.length}件見つかりました
+                {/* キャッシュから返った場合は印を出す。
+                    2回目が一瞬で返るのが分かり、キャッシュの効果を確認できる */}
+                {fromCache && (
+                  <span className="ml-2 rounded bg-white px-2 py-0.5 text-xs font-normal text-[#1E2A4A]/70">
+                    保存済みの結果
+                  </span>
+                )}
+              </p>
+
+              {/* カテゴリごとの件数。
+                  Object.entries でカテゴリ情報を1つずつ取り出して並べる */}
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {Object.entries(POI_CATEGORY_INFO).map(([key, info]) => {
+                  // filter で「そのカテゴリのものだけ」を抜き出して数える
+                  const count = pois.filter((p) => p.category === key).length;
+                  return (
+                    <li
+                      key={key}
+                      className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs text-[#1E2A4A]"
+                    >
+                      {/* 地図の点と同じ色の丸を置いて、対応が分かるようにする */}
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full"
+                        // 色は実行時に決まるので、Tailwindのクラスではなく
+                        // style で直接指定する（クラス名は事前に決まっている必要があるため）
+                        style={{ backgroundColor: info.color }}
+                      />
+                      {info.label} {count}
+                      {/* 対人ありのカテゴリに印を付ける。
+                          仕様書§2.2の「静かなモード」で除外する対象 */}
+                      {info.social && (
+                        <span className="text-[#1E2A4A]/50">（対人あり）</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* 近い順に5件。地図の点をクリックしても同じ情報が出る */}
+              <ol className="mt-3 space-y-1 text-xs text-[#1E2A4A]">
+                {pois.slice(0, 5).map((poi) => (
+                  <li key={poi.id} className="flex justify-between gap-2">
+                    <span className="truncate">{poi.name}</span>
+                    <span className="shrink-0 font-mono text-[#1E2A4A]/60">
+                      {Math.round(poi.distanceM)} m
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-2 text-xs text-[#1E2A4A]/60">
+                地図の色つきの点をタップすると、名前と距離が出ます。
+              </p>
+            </div>
+          )}
+        </section>
       )}
 
       {/* ------------------------------------------------------------

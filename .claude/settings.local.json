@@ -10,7 +10,27 @@
       "Bash(break)",
       "Bash(perl -e 'select\\(undef,undef,undef,1\\)')",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/)",
-      "Bash(curl -s -o /dev/null -w \"worker: HTTP %{http_code} / %{size_download} bytes / type=%{content_type}\\\\n\" http://localhost:3000/maplibre/maplibre-gl-worker.mjs)"
+      "Bash(curl -s -o /dev/null -w \"worker: HTTP %{http_code} / %{size_download} bytes / type=%{content_type}\\\\n\" http://localhost:3000/maplibre/maplibre-gl-worker.mjs)",
+      "Bash(cat)",
+      "Bash(curl -s -X POST --data-urlencode \"data@/tmp/q2.txt\" https://overpass.kumi.systems/api/interpreter -o /tmp/raw2.json -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -X POST --data-urlencode \"data@/tmp/q.txt\" https://overpass-api.de/api/interpreter -o /tmp/r3.json -w \"HTTP %{http_code} / %{time_total}s\\\\n\" --max-time 60)",
+      "Bash(curl -s -X POST --data-urlencode 'data=[out:json];node[\"amenity\"=\"cafe\"]\\(around:800,47.3769,8.5417\\);out 3;' https://overpass.osm.ch/api/interpreter)",
+      "Bash(curl -s \"http://localhost:3000/api/pois?lat=34.718589&lng=135.417325&radius=800\" -o /tmp/pois.json -w \"HTTP %{http_code} / %{time_total}s\\\\n\" --max-time 60)",
+      "Bash(grep -iA3 \"overpass\")",
+      "Bash(curl -s -X POST --data-urlencode \"data@/tmp/q3.txt\" https://overpass-api.de/api/interpreter -o /tmp/r4.json -w \"HTTP %{http_code} / %{time_total}s\\\\n\" --max-time 60)",
+      "Bash(perl -e 'select\\(undef,undef,undef,90\\)')",
+      "Bash(curl -s \"http://localhost:3000/api/pois?lat=34.718589&lng=135.417325&radius=800\" -o /tmp/pois.json -w \"HTTP %{http_code} / %{time_total}s\\\\n\" --max-time 90)",
+      "Bash(curl -s --max-time 20 https://overpass-api.de/api/status)",
+      "Bash(curl -s --max-time 20 https://overpass.kumi.systems/api/status)",
+      "Bash(perl -e 'select\\(undef,undef,undef,5\\)')",
+      "Bash(perl -e 'select\\(undef,undef,undef,3\\)')",
+      "Bash(curl -s \"http://localhost:3000/api/pois?lat=34.718589&lng=135.417325&radius=800\" -o /tmp/p2.json -w \"HTTP %{http_code} / %{time_total}s\\\\n\")",
+      "Bash(node -e \"const j=require\\('/tmp/p2.json'\\);console.log\\('件数:',j.pois.length,'| キャッシュ:',j.cached\\);\")",
+      "Bash(curl -s \"http://localhost:3000/api/pois?lat=34.718689&lng=135.417425&radius=800\" -o /tmp/p3.json -w \"HTTP %{http_code} / %{time_total}s\\\\n\")",
+      "Bash(node -e \"const j=require\\('/tmp/p3.json'\\);console.log\\('件数:',j.pois.length,'| キャッシュ:',j.cached\\);\")",
+      "Bash(curl -s \"http://localhost:3000/api/pois?lat=abc&lng=135.4\" -w \" ← HTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -X POST -H 'User-Agent: arquest-app/0.1 \\(personal portfolio project\\)' --data-urlencode 'data=[out:json][timeout:25];node[\"railway\"=\"station\"][\"name\"=\"出屋敷\"]\\(34.6,135.3,34.8,135.5\\);out body;' https://overpass-api.de/api/interpreter)"
     ]
   }
 }

@@ -39,6 +39,7 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
+  Popup,
   setWorkerUrl,
   type GeoJSONSource,
 } from "maplibre-gl";
@@ -52,6 +53,14 @@ import { createCircle, createTrailLine } from "@/lib/geo";
 
 // 軌跡の点の型（src/hooks/useWalkTrail.ts で定義）
 import type { TrailPoint } from "@/hooks/useWalkTrail";
+
+// スポットの型・カテゴリ情報・地図用データへの変換
+import {
+  createPoiFeatureCollection,
+  POI_CATEGORY_INFO,
+  type Poi,
+  type PoiCategory,
+} from "@/lib/poi";
 
 /**
  * 地図の「見た目」の設定ファイルの場所（CARTO社が無料公開しているもの）。
@@ -85,6 +94,10 @@ const CIRCLE_LINE_LAYER_ID = "accuracy-circle-line"; // 輪郭の線
 const TRAIL_SOURCE_ID = "walk-trail";
 const TRAIL_LAYER_ID = "walk-trail-line";
 
+/** 周辺スポット（点）用の名前 */
+const POI_SOURCE_ID = "nearby-pois";
+const POI_LAYER_ID = "nearby-pois-circle";
+
 /** 仕様書 4章のスカイブルー。マーカーと円で共通に使う */
 const BRAND_BLUE = "#5B8DEF";
 
@@ -94,6 +107,33 @@ const BRAND_BLUE = "#5B8DEF";
  * 「歩いた記録＝ごほうび」という仕様書の色の意味づけにも合う。
  */
 const BRAND_GOLD = "#F5B942";
+
+/**
+ * スポットの点を、カテゴリごとに色分けするための指定。
+ *
+ * ■ 「データ駆動スタイル」という考え方
+ *   点ひとつずつに色を決めて配るのではなく、
+ *   「category が explore なら青、nature なら緑…」という
+ *   ルールだけを地図に渡す。あとは地図が各点のデータを見て色を決める。
+ *   点が何百件あっても指定は1つで済み、動作も速い。
+ *
+ * ■ ["match", 見る値, 条件1, 結果1, 条件2, 結果2, …, どれにも当てはまらない場合]
+ *   という配列の形で書くのがMapLibreの決まり。
+ *   ["get", "category"] は「その点の properties.category を見る」という意味。
+ *
+ * Object.entries は { explore: {...}, nature: {...} } のような形を
+ * [["explore", {...}], ["nature", {...}]] という配列に変換する。
+ * flatMap で [キー, 色, キー, 色, …] と平らに並べ直している。
+ */
+const POI_COLOR_STYLE = [
+  "match",
+  ["get", "category"],
+  ...Object.entries(POI_CATEGORY_INFO).flatMap(([key, info]) => [
+    key,
+    info.color,
+  ]),
+  "#888888", // どのカテゴリにも当てはまらなかった場合の色
+];
 
 /**
  * MapLibreの「ワーカー」の置き場所（public/maplibre/ にコピーしてある）。
@@ -123,6 +163,7 @@ type Props = {
   lng: number; // 経度
   accuracy: number; // 精度（誤差の半径・メートル）
   trail: TrailPoint[]; // 歩いた軌跡（間引き済みの点の並び）
+  pois: Poi[]; // 周辺のスポット（未検索なら空の配列）
 };
 
 export default function CurrentLocationMap({
@@ -130,6 +171,7 @@ export default function CurrentLocationMap({
   lng,
   accuracy,
   trail,
+  pois,
 }: Props) {
   // ------------------------------------------------------------
   // useRef で「箱」を用意する
@@ -155,7 +197,7 @@ export default function CurrentLocationMap({
   // 最新の位置を覚えておく箱。
   // 地図の準備完了（load）は少し遅れて起きるため、そのときに
   // 「今の位置」を参照できるようにしておく必要がある。
-  const latestRef = useRef({ lat, lng, accuracy, trail });
+  const latestRef = useRef({ lat, lng, accuracy, trail, pois });
 
   // ------------------------------------------------------------
   // useState … 画面に出したい「地図の様子」
@@ -170,8 +212,8 @@ export default function CurrentLocationMap({
   // ------------------------------------------------------------
   // props が変わるたびに実行し、いつでも「今の位置」が読めるようにする。
   useEffect(() => {
-    latestRef.current = { lat, lng, accuracy, trail };
-  }, [lat, lng, accuracy, trail]);
+    latestRef.current = { lat, lng, accuracy, trail, pois };
+  }, [lat, lng, accuracy, trail, pois]);
 
   // ------------------------------------------------------------
   // useEffect その1 … 地図を作る（最初の1回だけ）
@@ -240,6 +282,7 @@ export default function CurrentLocationMap({
         lng: curLng,
         accuracy: curAccuracy,
         trail: curTrail,
+        pois: curPois,
       } = latestRef.current;
 
       // ------------------------------------------------------------
@@ -297,6 +340,76 @@ export default function CurrentLocationMap({
           "line-opacity": 0.6,
         },
       });
+
+      // ------------------------------------------------------------
+      // 周辺スポット（点）
+      // ------------------------------------------------------------
+      // 最後に登録することで、いちばん手前に描かれ、クリックしやすくなる。
+      map.addSource(POI_SOURCE_ID, {
+        type: "geojson",
+        data: createPoiFeatureCollection(curPois),
+      });
+      map.addLayer({
+        id: POI_LAYER_ID,
+        type: "circle",
+        source: POI_SOURCE_ID,
+        paint: {
+          // 色はカテゴリごと（上の POI_COLOR_STYLE の説明を参照）。
+          // 型の指定が複雑なため、ここだけ型検査を通す書き方をしている。
+          "circle-color": POI_COLOR_STYLE as never,
+          "circle-radius": 6,
+          // 白い縁を付けると、地図の色に埋もれずに見える
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFFFFF",
+        },
+      });
+
+      // --- 点をクリックしたら名前を出す ---
+      map.on("click", POI_LAYER_ID, (event) => {
+        const feature = event.features?.[0];
+        if (!feature || feature.geometry.type !== "Point") return;
+
+        // properties に入れておいた値を取り出す。
+        // 地図から返る値は型が確定していないので、String()/Number()で整えておく。
+        const name = String(feature.properties?.name ?? "");
+        const category = String(
+          feature.properties?.category ?? "",
+        ) as PoiCategory;
+        const distanceM = Number(feature.properties?.distanceM ?? 0);
+        const info = POI_CATEGORY_INFO[category];
+
+        // ★HTMLの文字列を組み立てて渡さない★
+        // 名前はOpenStreetMapの投稿データ、つまり他人が書いた文字列。
+        // そのままHTMLとして埋め込むと、細工された文字列で
+        // 不正なコードを実行されうる（クロスサイトスクリプティング）。
+        // 要素を作って textContent に入れれば、文字は必ず文字として扱われる。
+        const container = document.createElement("div");
+        container.style.font = "13px sans-serif";
+        container.style.color = "#1E2A4A";
+
+        const title = document.createElement("strong");
+        title.textContent = name;
+        container.appendChild(title);
+
+        const detail = document.createElement("div");
+        detail.style.marginTop = "2px";
+        detail.style.color = info?.color ?? "#666";
+        detail.textContent = `${info?.label ?? category}・約${distanceM}m`;
+        container.appendChild(detail);
+
+        new Popup({ closeButton: false, offset: 12 })
+          .setLngLat(feature.geometry.coordinates as [number, number])
+          .setDOMContent(container)
+          .addTo(map);
+      });
+
+      // --- 点の上にカーソルを乗せたら指の形にする（押せると分かるように） ---
+      map.on("mouseenter", POI_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", POI_LAYER_ID, () => {
+        map.getCanvas().style.cursor = "";
+      });
     });
 
     // 現在地のマーカーを立てる。色は仕様書 4章のスカイブルー。
@@ -353,6 +466,19 @@ export default function CurrentLocationMap({
       | undefined;
     trailSource?.setData(createTrailLine(trail));
   }, [lat, lng, accuracy, trail]);
+
+  // ------------------------------------------------------------
+  // useEffect その3 … 周辺スポットが変わったら点を描き直す
+  // ------------------------------------------------------------
+  // 位置の更新（1〜2秒ごと）とスポットの更新（ボタンを押したときだけ）は
+  // 起きる頻度がまったく違う。同じ useEffect にまとめると、
+  // 位置が動くたびにスポットの描き直しまで走って無駄になるので分けている。
+  useEffect(() => {
+    const source = mapRef.current?.getSource(POI_SOURCE_ID) as
+      | GeoJSONSource
+      | undefined;
+    source?.setData(createPoiFeatureCollection(pois));
+  }, [pois]);
 
   // ------------------------------------------------------------
   // 画面に表示する部分
