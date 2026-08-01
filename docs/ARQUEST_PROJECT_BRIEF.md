@@ -83,7 +83,7 @@ RPGクエスト風。Canvaテンプレートの「空気感」だけを参考に
 | 位置情報 | Geolocation API（`watchPosition`） | HTTPS必須。iOSは許可ダイアログがユーザー操作直後でないと出ないことがある |
 | 地図描画 | MapLibre GL JS + 無料ベースマップ（CARTO / Stadia Maps / MapTiler） | Leafletから変更。Googleマップは規約上「Google以外の地図と組み合わせ禁止」のため不採用 |
 | 周辺スポット検索 | Overpass API（OSM） | 無料。Next.jsのRoute Handler経由で呼び出し、CORS回避＋キャッシュのしやすさを両立 |
-| ルート・所要時間 | OSRM（徒歩プロファイル） | 無料。router.project-osrm.org のデモサーバーで検証可 |
+| ルート・所要時間 | **Valhalla（`costing: "pedestrian"`）** | FOSSGISの公開サーバー。OSRMから変更（下記の注意点を参照）。OSRMは停止時の代替として残す |
 | 定期実行 | Supabase pg_cron | 稼働時間帯の判定・ミッション生成に使用 |
 | 通知 | Web Push（VAPID）＋ Service Worker | ネイティブのFCM/APNsではなくブラウザ標準のWeb Push |
 | 相棒アニメーション | Rive / Framer Motion | Figmaで作画→Riveでインポート・アニメ化・着せ替え切り替え |
@@ -95,6 +95,8 @@ RPGクエスト風。Canvaテンプレートの「空気感」だけを参考に
 - **Googleの各API（Places / Directions / Routes）は「Google以外の地図と組み合わせて使用禁止」という規約がある。** 今の構成（MapLibre／OSM）を維持する限り、Google系の地理情報APIは採用しない。
 - 到達判定は**クライアントの概算（Haversine）＋サーバーの最終確認（PostGIS `ST_DWithin`）**の二段構え。片方だけに頼らない。
 - Overpass APIはレート制限のある無料の公共サーバーのため、`pois`テーブルへのキャッシュを必須とする。
+- **経路サービスをOSRMからValhallaに変更した。** OSRMの公開デモサーバー（router.project-osrm.org）は profile 指定を無視し、`foot` / `walking` / `driving` のどれを指定しても自動車の経路しか返さない。自動車の経路は一方通行・進入禁止の制約を受けるため遠回りになる（実測：徒歩1.34km に対し1.60km）。OSRMを本番で使うなら自前運用が必要。
+- **Overpass APIには User-Agent の指定が必須。** 名乗らないと `overpass-api.de` は406、`kumi.systems` は429で拒否する（OSMの利用規約でアプリの名乗りが求められているため）。また回数制限（429）に実際に到達したため、キャッシュを必須とする判断は実測で裏付けられた。タイムアウト時にも HTTP 200 で `remark` だけを返すことがあるので、`remark` の有無で失敗を判定する。
 
 ## 6. データベース設計（9テーブル＋日記1テーブル）
 
@@ -132,6 +134,19 @@ pois（周辺スポットキャッシュ）
   category text
   geom geography(Point,4326)
   cached_at timestamptz
+
+poi_searches（周辺スポット検索の履歴。キャッシュの有効範囲判定に使う）
+  id bigint PK (identity)
+  center geography(Point,4326)   検索の中心
+  radius_m integer               実際に取得した半径
+  searched_at timestamptz
+  ※ pois は「スポットがどこにあるか」しか知らず、「どの範囲を調べ終わったか」を知らない。
+    これが無いと「半径内に1件でもあればキャッシュ命中」と誤判定し、少し移動しただけで
+    不完全な結果を返し続ける（エラーは出ない）。
+    判定は「中心間の距離 + 今回の半径 ≦ 記録した半径」。
+    またこの判定だけだと同じ半径で検索し続けたとき1mの移動でも必ず外れるため、
+    Overpassには要求の2倍の半径で取りに行き、その範囲を記録する。
+    利用者に返すのは要求された半径の中だけ。
 
 quest_templates（お題テンプレート）
   id uuid PK
