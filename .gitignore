@@ -42,3 +42,7 @@ next-env.d.ts
 
 # Claude Code のローカル設定（PCごとの実行許可。共有不要）
 .claude/settings.local.json
+
+# Windows がダウンロード元を記録するために付ける残骸ファイル。
+# WSL から見ると全ファイルの隣に "xxx:Zone.Identifier" として現れる。中身は不要。
+*:Zone.Identifier
