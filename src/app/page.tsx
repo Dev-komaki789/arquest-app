@@ -654,11 +654,20 @@ export default function Home() {
           <details> は、クリックで開閉できるHTMLの標準機能。 */}
       <details className="mt-auto text-xs text-[#1E2A4A]/60">
         <summary className="cursor-pointer">動作確認のしかた（開発用メモ）</summary>
+        {/* キー操作はOSで違う。開発を2台（Mac / Windows）で行き来しているので、
+            どちらでも読めるように両方を併記する。 */}
         <ol className="mt-2 list-decimal space-y-1 pl-5 leading-relaxed">
-          <li>DevToolsを開く（Cmd + Option + I）</li>
-          <li>Cmd + Shift + P →「sensors」と入力 → Show Sensors</li>
+          <li>DevToolsを開く（Mac: Cmd + Option + I／Windows: F12）</li>
+          <li>
+            コマンド入力を開く（Mac: Cmd + Shift + P／Windows: Ctrl + Shift + P）→
+            「sensors」と入力 → Show Sensors
+          </li>
           <li>Location を Tokyo などに変更すると、その座標に地図が動く</li>
-          <li>Custom で緯度経度を少しずつ変えると、追従の動きが確認できる</li>
+          <li>Other で緯度経度を少しずつ変えると、追従の動きが確認できる</li>
+          <li>
+            緯度と経度を別々に貼り替えると中間地点が一瞬「現在地」として記録され、
+            軌跡がL字に折れて距離が水増しされる。全選択してから貼り替えること
+          </li>
         </ol>
       </details>
     </main>

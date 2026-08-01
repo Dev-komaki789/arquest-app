@@ -73,15 +73,54 @@ export type GeoStatus = "idle" | "requesting" | "tracking" | "error";
  * `Record<number, string>` = 「数字をキーにして、文字列を取り出せる表」という型。
  */
 const ERROR_MESSAGES: Record<number, string> = {
-  // 1 = PERMISSION_DENIED（許可されなかった）
-  // ブラウザの設定と、Mac本体の設定（システム設定 → プライバシーとセキュリティ →
-  // 位置情報サービス）の両方が原因になりうるので、両方に触れておく。
-  1: "位置情報が許可されませんでした。ブラウザの設定と、Macのシステム設定（プライバシーとセキュリティ → 位置情報サービス）を確認してください。",
+  // 1 = PERMISSION_DENIED は、案内先がOSごとに違うので下の関数で組み立てる。
   // 2 = POSITION_UNAVAILABLE（電波やGPSの状態で測位できなかった）
   2: "位置を取得できませんでした。Wi-FiやGPSの状態を確認してください。",
   // 3 = TIMEOUT（時間内に返ってこなかった）
   3: "位置の取得に時間がかかりすぎました。もう一度お試しください。",
 };
+
+/**
+ * 「許可されなかった」ときの案内文を、使っているOSに合わせて組み立てる。
+ *
+ * ■ なぜOSごとに分けるのか
+ *   位置情報は「ブラウザの許可」と「OS本体の許可」の二段階になっていて、
+ *   どちらか一方でも切れていると失敗する。
+ *   そしてOS側の設定画面の名前は、OSごとにまったく違う。
+ *   「システム設定 → プライバシーとセキュリティ」と案内されても、
+ *   Windowsの利用者はその画面を見つけられない。
+ *
+ * ■ 以前はMac決め打ちだった
+ *   開発をMacで始めたため、Macの手順を直接書いていた。
+ *   実際にWindowsで動かしたところ、存在しない設定画面を案内してしまった。
+ *   このアプリは仕様書§2.1のとおりiPhone・AndroidにPWAとして入れて使うものなので、
+ *   利用者のOSはMacとは限らない。
+ *
+ * ■ 判定に navigator.userAgent を使っている理由
+ *   より新しい navigator.userAgentData という手段もあるが、
+ *   対応していないブラウザ（Safari・Firefox）がある。
+ *   ここは案内文の出し分けなので、外しても実害は「案内が一般的な文になる」だけ。
+ *   確実に全ブラウザで読める userAgent で十分。
+ */
+function permissionDeniedMessage(): string {
+  const ua = navigator.userAgent;
+
+  // OSごとの設定画面の場所。分からなければ一般的な言い方にする。
+  let osHint: string;
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    osHint = "iPhoneの「設定 → プライバシーとセキュリティ → 位置情報サービス」";
+  } else if (/Android/.test(ua)) {
+    osHint = "端末の「設定 → 位置情報」";
+  } else if (/Windows/.test(ua)) {
+    osHint = "Windowsの「設定 → プライバシーとセキュリティ → 位置情報」";
+  } else if (/Mac/.test(ua)) {
+    osHint = "Macの「システム設定 → プライバシーとセキュリティ → 位置情報サービス」";
+  } else {
+    osHint = "お使いのOSの位置情報の設定";
+  }
+
+  return `位置情報が許可されませんでした。ブラウザのアドレスバーにある鍵アイコンから位置情報を「許可」にし、${osHint}も有効になっているか確認してください。`;
+}
 
 /**
  * 位置情報の取得方法のオプション。
@@ -287,9 +326,14 @@ export function useGeolocation(options: Options = {}) {
        * （成功時に setError(null) しているため）。
        */
       (err) => {
+        // 許可されなかった場合だけ、案内先がOSごとに違うので専用の関数で組み立てる。
         // `??` は「左が null や undefined なら右を使う」という意味。
         // 表に無い番号が来ても画面が空白にならないよう、保険として元のメッセージを出す。
-        setError(ERROR_MESSAGES[err.code] ?? err.message);
+        setError(
+          err.code === err.PERMISSION_DENIED
+            ? permissionDeniedMessage()
+            : (ERROR_MESSAGES[err.code] ?? err.message),
+        );
 
         // 許可されなかった場合だけ、見張りを止めて「エラー」状態にする。
         // err.PERMISSION_DENIED は 1 のこと。数字を直接書くより意味が伝わる。
