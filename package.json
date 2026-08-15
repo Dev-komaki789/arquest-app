@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node scripts/copy-maplibre-worker.mjs"
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
