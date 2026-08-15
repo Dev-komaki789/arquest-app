@@ -1,26 +1,227 @@
 @import "tailwindcss";
 
+/**
+ * アルクエストの配色（仕様書§4／モックアップ screen-shot/ に準拠）
+ *
+ * ■ ゴールドの使いどころ
+ *   「進む」ボタンと、ごほうび（EXP・レベル）にだけ使う。
+ *   全画面に散らすと、どれが強調なのか分からなくなる。
+ *
+ * ■ 紺は「相棒が喋る場所」の色
+ *   メッセージウィンドウと、達成報告の背景。
+ *   この2つだけが紺地なので、相棒の言葉が特別に見える。
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sky: #5b8def; /* 基本のスカイブルー */
+  --sky-deep: #3e6fd8; /* 押したとき・濃い方 */
+  --sky-pale: #e8effb; /* 画面の下半分の背景 */
+  --navy: #1e2a4a; /* 文字・メッセージウィンドウ */
+  --gold: #f5b942; /* ごほうび・進むボタン */
+  --gold-pale: #fff3de; /* 強調カードの背景 */
+  --gold-deep: #e0a93c;
+  --grass: #4caf7d;
+  --face: #c7ddf7; /* 相棒の顔 */
+  --blush: #f2a0b0;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-sky: var(--sky);
+  --color-sky-deep: var(--sky-deep);
+  --color-sky-pale: var(--sky-pale);
+  --color-navy: var(--navy);
+  --color-gold: var(--gold);
+  --color-gold-pale: var(--gold-pale);
+  --color-gold-deep: var(--gold-deep);
+  --color-grass: var(--grass);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/**
+ * 相棒のぷにぷに。
+ *
+ * 下端を支点にして、ゆっくり縦横に伸び縮みさせるだけ。
+ * 位置を動かすとレイアウトが揺れて読みにくくなるので、形だけ変える。
+ */
+@keyframes slime-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.05, 0.95);
+  }
+}
+
+.slime-breathe {
+  animation: slime-breathe 2.8s ease-in-out infinite;
+  transform-origin: 50% 92%;
+}
+
+/**
+ * 相棒がぴょんと跳ねる。
+ *
+ * ■ 絵は2枚しかないのに、なぜ滑らかに見えるのか
+ *   上下の移動と伸び縮みはCSSが連続して繋いでくれるので、
+ *   絵の切り替えが2回でも動き自体は途切れない。
+ *   絵は「ふつう」と「つぶれ」の2枚を、次の場所で入れ替えている。
+ *
+ *     0%  接地（つぶれ） → 8% 離陸（ふつう） → 28% 頂点
+ *     → 55% 着地（つぶれ） → 62%〜100% 待機（ふつう）
+ *
+ * ■ 切り替えを着地の瞬間に置く理由
+ *   いちばん速く動いている場面なので、絵が入れ替わったことに目が留まらない。
+ *   ゆっくり動いている場面で切り替えると、パッと変わったのがはっきり見える。
+ *
+ * ■ 半透明で重ねない理由
+ *   2枚をクロスフェードすると、速い動きでは残像のように見える。
+ *   ぱっと切り替えるほうが、絵が2枚でも「動いている」と見える。
+ */
+@keyframes slime-hop-move {
+  /* 待機。ここが長いので「たまに跳ねる」に見える */
+  0%,
+  26% {
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: ease-in;
+  }
+
+  /* ぐ〜（溜め）。ゆっくり潰れる。
+     絵は「ふつう」のままCSSで潰すので、切り替わりが見えない */
+  40% {
+    transform: translateY(0) scale(1.05, 0.91);
+    animation-timing-function: linear;
+  }
+
+  /* 潰れきったところ。ここで絵を「つぶれ」に差し替える。
+     2枚のシルエットが一番近いので、入れ替わりが目に留まらない */
+  44% {
+    transform: translateY(0) scale(1.03, 0.93);
+    animation-timing-function: ease-out;
+  }
+
+  /* 底で少しだけ粘る。ここが「ぐ〜」の頂点 */
+  48% {
+    transform: translateY(0) scale(1.02, 0.95);
+    animation-timing-function: cubic-bezier(0.15, 0.9, 0.25, 1);
+  }
+
+  /* ぴょーん。一気に伸びて離陸する（絵は「ふつう」に戻る） */
+  53% {
+    transform: translateY(-14%) scale(0.89, 1.17);
+    animation-timing-function: ease-out;
+  }
+
+  /* 頂点。空中では形が戻る */
+  64% {
+    transform: translateY(-38%) scale(1, 1);
+    animation-timing-function: ease-in;
+  }
+
+  /* 落下。落ちながら縦に伸びる */
+  76% {
+    transform: translateY(-5%) scale(0.94, 1.08);
+    animation-timing-function: linear;
+  }
+
+  /* 着地の潰れ。ここも絵を「つぶれ」にする（速いので見えない） */
+  80% {
+    transform: translateY(0) scale(1.07, 0.9);
+    animation-timing-function: ease-out;
+  }
+
+  /* もとに戻って、また待機へ */
+  88%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+/* 「ふつう」の絵を出す区間。%は上の動きと必ず揃えること */
+@keyframes slime-hop-normal {
+  0%,
+  43.9% {
+    opacity: 1;
+  }
+  44%,
+  49.9% {
+    opacity: 0;
+  }
+  50%,
+  77.9% {
+    opacity: 1;
+  }
+  78%,
+  83.9% {
+    opacity: 0;
+  }
+  84%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 「つぶれ」の絵を出す区間。上の裏返し */
+@keyframes slime-hop-squashed {
+  0%,
+  43.9% {
+    opacity: 0;
+  }
+  44%,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  77.9% {
+    opacity: 0;
+  }
+  78%,
+  83.9% {
+    opacity: 1;
+  }
+  84%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.slime-hop {
+  animation: slime-hop-move 2.2s infinite;
+  transform-origin: 50% 100%;
+}
+
+.slime-hop-normal {
+  animation: slime-hop-normal 2.2s steps(1, end) infinite;
+}
+
+.slime-hop-squashed {
+  animation: slime-hop-squashed 2.2s steps(1, end) infinite;
+}
+
+/* 動きを減らす設定にしている端末では止める（酔いやすい人がいるため） */
+@media (prefers-reduced-motion: reduce) {
+  .slime-breathe,
+  .slime-hop,
+  .slime-hop-normal,
+  .slime-hop-squashed {
+    animation: none;
+  }
+
+  /* 止めたときに2枚が重なって見えないよう、つぶれのほうを隠す */
+  .slime-hop-squashed {
+    opacity: 0;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--navy);
+  background: var(--sky-pale);
+
+  /*
+   * 日本語の書体。
+   *
+   * 仕様書§4は游ゴシック指定だが、AndroidとiPhoneには入っていない。
+   * 端末ごとに一番読みやすい標準の書体を上から順に試し、
+   * 最後にどの端末にもある sans-serif に落とす。
+   */
+  font-family:
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", YuGothic, "Noto Sans JP",
+    "Segoe UI", Roboto, sans-serif;
 }
