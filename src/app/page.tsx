@@ -24,12 +24,27 @@
 
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { CardReel } from "@/components/CardReel";
+import { DetourRoute } from "@/components/DetourRoute";
+import { WalkingInfoPanel } from "@/components/WalkingInfoPanel";
 import { Companion } from "@/components/Companion";
+import { DiaryComposer } from "@/components/DiaryComposer";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { WalkScene } from "@/components/WalkScene";
 import { useQuest } from "@/hooks/useQuest";
 import { useQuestTrail } from "@/hooks/useQuestTrail";
-import { isWeekend, MAX_REDRAW } from "@/lib/quest";
+import { useDestination } from "@/hooks/useDestination";
+import { useWalkingInfo } from "@/hooks/useWalkingInfo";
+import { loadSettings, setShowWalkingInfo } from "@/lib/settings";
+import {
+  isWeekend,
+  loadActionCards,
+  loadMovementCards,
+  MAX_REDRAW,
+} from "@/lib/quest";
 
 /** 距離を読みやすく。1km未満はm、それ以上はkm */
 function formatDistance(meters: number): string {
@@ -157,6 +172,67 @@ export default function Page() {
 
   const weekend = isWeekend();
 
+  // 達成報告で「日記に書く」を開いているか
+  const [writingDiary, setWritingDiary] = useState(false);
+
+  // 「まだ・もうすこし ねばる」を押したか。
+  // 押しても**クエストは終わらない**。相棒がひとこと言うだけで、画面に留まる
+  const [persisting, setPersisting] = useState(false);
+
+  // ルーレットを回しているか（どちらのカードか）。
+  // 引くボタンを押した瞬間に立て、止まりきったら下ろす。
+  // **途中から復帰したときは回さない**（アプリを開き直すたびに演出が出ると邪魔）
+  const [reel, setReel] = useState<"movement" | "action" | null>(null);
+
+  // ルーレットに流す見せ札。結果とは関係ない
+  const [reelLabels, setReelLabels] = useState<string[]>([]);
+
+  /** 引く操作。ルーレットを回しはじめてから、実際の抽選を頼む */
+  const startDraw = (kind: "movement" | "action", run: () => void) => {
+    setReel(kind);
+    const load = kind === "movement" ? loadMovementCards() : loadActionCards();
+    void load
+      .then((cards) => setReelLabels(cards.map((card) => card.label)))
+      .catch(() => setReelLabels([]));
+    run();
+  };
+
+  // 移動中の表示（仕様書§2.4）。既定はオフ
+  const [showWalking, setShowWalking] = useState(false);
+  const moving = quest?.status === "moving";
+  const walkingInfo = useWalkingInfo(showWalking && moving && !reel);
+
+  // 寄り道さきへの道順（仕様書§2.4③）。押したときだけ計算する
+  const detour = useDestination();
+
+  // 経過時間を1秒ごとに描き直すための、いまの時刻
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!showWalking || !moving) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [showWalking, moving]);
+
+  // 設定を読む。読めなくても遊びは止まらないので、失敗しても何もしない
+  useEffect(() => {
+    let alive = true;
+    loadSettings()
+      .then((settings) => {
+        if (alive) setShowWalking(settings.showWalkingInfo);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const toggleWalking = (value: boolean) => {
+    setShowWalking(value);
+    // 保存に失敗しても、この場の表示は変わったままにする（次回に戻るだけ）
+    void setShowWalkingInfo(value).catch(() => {});
+  };
+
   // 行動カードを引いた後だけ、歩いた距離と軌跡を記録する（仕様書§2.7）
   const trail = useQuestTrail(quest);
   const walked = { distanceM: trail.distanceM, position: trail.lastPosition };
@@ -185,6 +261,38 @@ export default function Page() {
 
         {loading ? (
           <p className="py-24 text-center text-sm text-white/60">よみこみ中…</p>
+        ) : reel && !error ? (
+          /* ---------- カードを引く（ルーレット） ---------- */
+          <section className="flex flex-col gap-5 pt-6">
+            <div className="flex items-end gap-2">
+              <Companion mood="telling" size={110} />
+              <Speech>
+                {reel === "movement"
+                  ? "いくよ。とめてね。"
+                  : "ついたね。ここで やることは……"}
+              </Speech>
+            </div>
+
+            <CardReel
+              kind={reel}
+              candidates={reelLabels}
+              /* 処理中は結果を伏せる（＝止められない）。
+                 とくに再抽選では、更新が返るまで**古いカードが残っている**ので、
+                 伏せずにいると「止めた札」と「そのあと出る札」が食い違う */
+              result={
+                busy
+                  ? null
+                  : reel === "movement"
+                    ? (quest?.status === "moving"
+                        ? quest.movementCard.label
+                        : null)
+                    : (quest?.status === "acting"
+                        ? (quest.actionCard?.label ?? null)
+                        : null)
+              }
+              onSettled={() => setReel(null)}
+            />
+          </section>
         ) : finished ? (
           /* ---------- ④ クエスト たっせい ---------- */
           <section className="flex flex-col items-center gap-4 pt-6">
@@ -247,9 +355,31 @@ export default function Page() {
               </div>
             )}
 
-            <div className="mt-2 w-full">
-              <Button onClick={closeReport}>ホームへ</Button>
-            </div>
+            {/* 歩いた直後がいちばん書きやすいので、この場で書けるようにする。
+                別の画面へ飛ばすと、そのまま閉じてしまう */}
+            {writingDiary ? (
+              <DiaryComposer
+                questId={finished.id}
+                onSaved={() => {
+                  setWritingDiary(false);
+                  closeReport();
+                }}
+                onCancel={() => setWritingDiary(false)}
+              />
+            ) : (
+              <div className="mt-2 flex w-full gap-3">
+                <button
+                  type="button"
+                  onClick={() => setWritingDiary(true)}
+                  className="flex-1 rounded-xl border border-white/20 bg-white/10 py-4 text-base font-bold text-white active:bg-white/20"
+                >
+                  日記に書く
+                </button>
+                <div className="flex-1">
+                  <Button onClick={closeReport}>ホームへ</Button>
+                </div>
+              </div>
+            )}
           </section>
         ) : !quest ? (
           /* ---------- ① クエストが無い：相棒が誘う ---------- */
@@ -273,8 +403,11 @@ export default function Page() {
             </div>
 
             <div className="mt-4">
-              <Button onClick={draw} disabled={busy}>
-                {busy ? "うけています…" : "クエストを 受ける"}
+              <Button
+                onClick={() => startDraw("movement", draw)}
+                disabled={busy}
+              >
+                クエストを 受ける
               </Button>
             </div>
 
@@ -286,6 +419,13 @@ export default function Page() {
 
             {/* ホーム画面に追加する案内。すでに追加済みなら何も出ない（仕様書§2.1） */}
             <InstallPrompt />
+
+            <Link
+              href="/diary"
+              className="mx-auto text-sm text-white/60 underline"
+            >
+              日記を見る
+            </Link>
           </section>
         ) : quest.status === "moving" ? (
           /* ---------- ② 移動カード（移動中） ---------- */
@@ -327,14 +467,76 @@ export default function Page() {
               </Speech>
             </div>
 
-            <p className="text-center text-xs leading-relaxed text-white/50">
-              ついたと おもったら、じぶんで おしてね。
-              <br />
-              ここまでは 位置情報を つかっていません。
-            </p>
+            {showWalking ? (
+              <WalkingInfoPanel
+                startedAt={quest.createdAt}
+                now={now}
+                spots={walkingInfo.spots}
+                pausedReason={walkingInfo.pausedReason}
+                notice={walkingInfo.notice}
+                searching={walkingInfo.searching}
+                selectedSpotId={detour.destination?.id ?? null}
+                onSelectSpot={(spot) => {
+                  // もう一度押したら閉じる
+                  if (detour.destination?.id === spot.id) {
+                    detour.clearDestination();
+                    return;
+                  }
+                  if (!walkingInfo.here) return;
+                  void detour.selectDestination(
+                    spot,
+                    walkingInfo.here.lat,
+                    walkingInfo.here.lng,
+                  );
+                }}
+                routeSlot={
+                  detour.destination && walkingInfo.here ? (
+                    <DetourRoute
+                      spot={detour.destination}
+                      here={walkingInfo.here}
+                      routeCoordinates={detour.routeCoordinates}
+                      routeDistanceM={detour.routeDistanceM}
+                      routeProfile={detour.routeProfile}
+                      routeStatus={detour.routeStatus}
+                      routeError={detour.routeError}
+                      onClose={detour.clearDestination}
+                    />
+                  ) : null
+                }
+              />
+            ) : (
+              <p className="text-center text-xs leading-relaxed text-white/50">
+                ついたと おもったら、じぶんで おしてね。
+                <br />
+                ここまでは 位置情報を つかっていません。
+              </p>
+            )}
 
-            <Button onClick={arrive} disabled={busy}>
-              {busy ? "めくっています…" : "ついた"}
+            {/* 移動中の表示の切り替え（仕様書§2.4）。
+                オンにすると移動中も位置情報が動くので、そのことを併記する */}
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-white/15 px-4 py-3">
+              <span className="text-xs leading-relaxed text-white/70">
+                移動中の表示
+                <br />
+                <span className="text-white/45">
+                  {showWalking
+                    ? "位置情報を使って、通り道のスポットを探します"
+                    : "オンにすると、時間と通り道のスポットが出ます"}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={showWalking}
+                onChange={(event) => toggleWalking(event.target.checked)}
+                className="h-6 w-6 shrink-0 accent-[var(--gold)]"
+              />
+            </label>
+
+            <Button
+              onClick={() => startDraw("action", arrive)}
+              disabled={busy}
+            >
+              ついた
             </Button>
 
             <Button onClick={cancel} disabled={busy} variant="link">
@@ -384,7 +586,14 @@ export default function Page() {
             )}
 
             {quest.redrawCount < MAX_REDRAW ? (
-              <Button onClick={redraw} disabled={busy} variant="dark">
+              <Button
+                onClick={() => {
+                  setPersisting(false);
+                  startDraw("action", redraw);
+                }}
+                disabled={busy}
+                variant="dark"
+              >
                 再抽選（あと {MAX_REDRAW - quest.redrawCount} 回）
               </Button>
             ) : (
@@ -393,17 +602,42 @@ export default function Page() {
               </p>
             )}
 
+            {persisting && (
+              <div className="flex items-end gap-2">
+                <Companion mood="waiting" size={72} />
+                <Speech>
+                  うん、まだ だいじょうぶ。
+                  <br />
+                  つかれたら「きょうは ここまで」で 終われるよ。
+                </Speech>
+              </div>
+            )}
+
             <div className="mt-2 flex flex-col gap-3">
               <Button onClick={() => finish("done", walked)} disabled={busy}>
                 できた
               </Button>
+
+              {/* 押しても終わらない。
+                  「もうすこし ねばる」と書いてあるのに終わってしまうのは、
+                  ボタンの言葉と結果が食い違っている */}
               <Button
-                onClick={() => finish("not_yet", walked)}
+                onClick={() => setPersisting(true)}
                 disabled={busy}
                 variant="dark"
               >
                 まだ・もうすこし ねばる
               </Button>
+
+              {/* できないまま終える道。ここで初めて記録される */}
+              <Button
+                onClick={() => finish("not_yet", walked)}
+                disabled={busy}
+                variant="link"
+              >
+                きょうは ここまでにする
+              </Button>
+
               <p className="text-center text-xs text-white/50">
                 できなくても、来たことは記録されます。
               </p>
