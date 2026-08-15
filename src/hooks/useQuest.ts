@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  cancelQuest,
   drawActionCard,
   drawMovementCard,
   findActiveQuest,
@@ -50,6 +51,8 @@ export type UseQuest = {
   draw: () => void;
   arrive: () => void;
   redraw: () => void;
+  /** 引いたクエストをやめる（まだ歩き出していないとき） */
+  cancel: () => void;
   finish: (
     result: ActionResult,
     walked: { distanceM: number; position: { lat: number; lng: number } | null },
@@ -130,6 +133,14 @@ export function useQuest(): UseQuest {
     });
   }, [quest, run]);
 
+  const cancel = useCallback(() => {
+    if (!quest) return;
+    run(async () => {
+      await cancelQuest(quest.id);
+      setQuest(null);
+    });
+  }, [quest, run]);
+
   const finish = useCallback(
     (
       result: ActionResult,
@@ -166,6 +177,7 @@ export function useQuest(): UseQuest {
     draw,
     arrive,
     redraw,
+    cancel,
     finish,
     closeReport,
   };

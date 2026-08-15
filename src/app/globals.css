@@ -195,12 +195,62 @@
   animation: slime-hop-squashed 2.2s steps(1, end) infinite;
 }
 
+/**
+ * 移動中の景色を流す（WalkScene.tsx）。
+ *
+ * 同じ絵を並べたものを、1枚ぶんだけ左へ動かす。
+ * 動かし終わった瞬間に元の位置へ戻るが、どの絵も同じなので気づかれない。
+ *
+ * **並べる枚数は帯の幅より広くなるようにする。**
+ * 足りないと、流し終わった瞬間に右端が空いて景色が途切れる（WalkScene.tsx）。
+ *
+ * 速さは一定（linear）にする。ease を付けると、
+ * 1周ごとに速くなったり遅くなったりして、繰り返しに気づかれてしまう。
+ */
+@keyframes scene-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* 絵1枚ぶんだけ左へ。枚数に関係なく成り立つよう、
+       割合ではなく実寸（--scene-tile）で指定する */
+    transform: translateX(calc(-1 * var(--scene-tile, 360px)));
+  }
+}
+
+.scene-scroll {
+  animation: scene-scroll 14s linear infinite;
+}
+
+/**
+ * 「移動中…」の点滅。
+ *
+ * 完全に消さず、薄くするだけにしている。
+ * ぱっと消える点滅は視界の端でちらついて気が散るし、
+ * 歩きながら見る画面なので、静かに息をする程度でよい。
+ */
+@keyframes blink-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.blink-soft {
+  animation: blink-soft 1.6s ease-in-out infinite;
+}
+
 /* 動きを減らす設定にしている端末では止める（酔いやすい人がいるため） */
 @media (prefers-reduced-motion: reduce) {
   .slime-breathe,
   .slime-hop,
   .slime-hop-normal,
-  .slime-hop-squashed {
+  .slime-hop-squashed,
+  .scene-scroll,
+  .blink-soft {
     animation: none;
   }
 

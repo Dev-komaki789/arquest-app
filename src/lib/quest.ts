@@ -300,6 +300,26 @@ export async function redrawActionCard(quest: Quest): Promise<Quest> {
   return rowToQuest(data as unknown as QuestRow);
 }
 
+/**
+ * 引いたクエストをやめる（「きょうは やめておく」）。
+ *
+ * ■ なぜ「やめる」を用意するのか（仕様書§1）
+ *   気分でないときはパスしてよい、というのがこの遊びの前提。
+ *   引いたら最後までやらせる作りにすると、次に開くのが億劫になる。
+ *
+ * ■ なぜ記録を残さず消すのか
+ *   まだ一歩も歩いていないので、残す出来事が無い。
+ *   「できなかった記録」として残すと、パスが失敗のように見えてしまう。
+ *   歩いた後の「まだ」（＝行動カードまで進んだ場合）とは扱いを分ける。
+ */
+export async function cancelQuest(questId: string): Promise<void> {
+  const supabase = getBrowserSupabase();
+
+  const { error } = await supabase.from("quests").delete().eq("id", questId);
+
+  if (error) throw new Error(`やめられませんでした: ${error.message}`);
+}
+
 /** 終わったときにもらえるもの */
 export type QuestReward = {
   /** 今回もらったEXP */
