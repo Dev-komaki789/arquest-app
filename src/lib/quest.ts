@@ -46,6 +46,8 @@ export type Quest = {
   id: string;
   status: QuestStatus;
   redrawCount: number;
+  /** 引いた時刻。移動中の「経過時間」の起点になる */
+  createdAt: string;
   movementCard: MovementCard;
   actionCard: ActionCard | null;
   actionResult: ActionResult | null;
@@ -83,6 +85,7 @@ type QuestRow = {
   status: QuestStatus;
   action_redraw_count: number;
   action_result: ActionResult | null;
+  created_at: string;
   movement_cards: {
     id: string;
     label: string;
@@ -98,7 +101,7 @@ type QuestRow = {
 
 /** 結合つきで取り出すときの列の指定。3か所で同じものを使うのでまとめておく */
 const QUEST_SELECT =
-  "id, status, action_redraw_count, action_result, " +
+  "id, status, action_redraw_count, action_result, created_at, " +
   "movement_cards(id, label, transport_mode), " +
   "action_cards(id, label, involves_spending, requires_photo)";
 
@@ -109,6 +112,7 @@ function rowToQuest(row: QuestRow): Quest {
     status: row.status,
     redrawCount: row.action_redraw_count,
     actionResult: row.action_result,
+    createdAt: row.created_at,
     movementCard: {
       id: row.movement_cards.id,
       label: row.movement_cards.label,
@@ -162,20 +166,7 @@ export async function drawMovementCard(): Promise<Quest> {
   const userId = await ensureSignedIn();
   const supabase = getBrowserSupabase();
 
-  // 平日は徒歩のみ、休日は交通機関ありも候補に入れる
-  const modes: TransportMode[] = isWeekend()
-    ? ["walk_only", "transit_ok"]
-    : ["walk_only"];
-
-  const { data: cards, error: cardsError } = await supabase
-    .from("movement_cards")
-    .select("id, label, transport_mode")
-    .eq("is_active", true)
-    .in("transport_mode", modes);
-
-  if (cardsError) {
-    throw new Error(`移動カードを読めませんでした: ${cardsError.message}`);
-  }
+  const cards = await loadMovementCards();
 
   // 抽選は画面側で行う。
   // ここで不正をしても損をするのは自分だけなので、サーバーに任せる理由がない
@@ -203,6 +194,39 @@ export async function drawMovementCard(): Promise<Quest> {
   }
 
   return rowToQuest(data as unknown as QuestRow);
+}
+
+/**
+ * きょう引ける移動カードを読む。
+ *
+ * 平日は徒歩のみ、休日は交通機関ありも候補に入る（仕様書§2.2）。
+ * 抽選に使うほか、**ルーレットに流す文面**としても使う。
+ */
+let cachedMovementCards: MovementCard[] | null = null;
+
+export async function loadMovementCards(): Promise<MovementCard[]> {
+  if (cachedMovementCards) return cachedMovementCards;
+
+  const modes: TransportMode[] = isWeekend()
+    ? ["walk_only", "transit_ok"]
+    : ["walk_only"];
+
+  const supabase = getBrowserSupabase();
+  const { data, error } = await supabase
+    .from("movement_cards")
+    .select("id, label, transport_mode")
+    .eq("is_active", true)
+    .in("transport_mode", modes);
+
+  if (error) throw new Error(`移動カードを読めませんでした: ${error.message}`);
+
+  cachedMovementCards = (data ?? []).map((row) => ({
+    id: row.id,
+    label: row.label,
+    transportMode: row.transport_mode as TransportMode,
+  }));
+
+  return cachedMovementCards;
 }
 
 /**
