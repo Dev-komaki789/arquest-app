@@ -17,7 +17,10 @@
  */
 
 /**
- * お題のカテゴリ（仕様書§2.2）。
+ * スポットの分類（仕様書§6の `pois.category`）。
+ *
+ * お題の分類ではない。お題は行動カードが決めるので場所とは無関係で、
+ * これは「通り道のスポット」（仕様書§2.4）を地図と一覧で色分けするためだけの値。
  *
  * コードの中では英語のキー（explore など）を使い、
  * 画面に出す日本語は label として持つ。
@@ -33,18 +36,17 @@ export type PoiCategory = "explore" | "nature" | "meet" | "errand";
  * 現在地（#5B8DEF）や軌跡（#F5B942）と重ならない色にして、
  * 地図の上で役割が混ざらないようにしている。
  *
- * social は対人度（仕様書§2.2の★に相当する簡易版）。
- * 「であい」だけが現地で人と接する可能性があり、
- * 将来の「静かなモード」ではこれを目印に除外する。
+ * 以前は「対人度（social）」を持たせて、対人ありのスポットに印を付けていた。
+ * 仕様書§10で対人系のお題そのものを不採用にし、「静かなモード」も消えたため削除した。
  */
 export const POI_CATEGORY_INFO: Record<
   PoiCategory,
-  { label: string; color: string; social: boolean }
+  { label: string; color: string }
 > = {
-  explore: { label: "たんけん", color: "#3E6FD8", social: false }, // 濃いスカイブルー
-  nature: { label: "しぜん", color: "#4CAF7D", social: false }, // グラス
-  meet: { label: "であい", color: "#D2691E", social: true }, // 対人ありを暖色で区別
-  errand: { label: "ちいさな用事", color: "#1E2A4A", social: false }, // 紺
+  explore: { label: "たんけん", color: "#3E6FD8" }, // 濃いスカイブルー
+  nature: { label: "しぜん", color: "#4CAF7D" }, // グラス
+  meet: { label: "であい", color: "#D2691E" }, // 暖色で他と区別
+  errand: { label: "ちいさな用事", color: "#1E2A4A" }, // 紺
 };
 
 /** 1件のスポット。サーバーと画面の間でやり取りする形 */
@@ -61,13 +63,14 @@ export type Poi = {
    *
    * ■ なぜ id とは別に持つのか
    *   id はOSM側の呼び名（"node/123456"）で、こちらは自分のデータベースの番号。
-   *   仕様書§6の visit_logs や quests は pois.id を参照する設計なので、
-   *   「訪問済みのスポットを候補から外す」にはこちらの番号が要る。
+   *   キャッシュの重複を防いだり、同じスポットを指していることを確かめるのに使う。
+   *
+   *   確定版では quests がスポットを参照しない（移動カードが座標を持たない）ので、
+   *   この番号をクエスト側から使うことは無い。
    *
    * ■ なぜ省略可能（?）なのか
    *   Supabaseが使えないときはOverpassから直接返す道があり、
    *   その場合はまだデータベースに保存されていないので番号が無い。
-   *   到達判定（仕様書§8の⑧⑨）を作る段階まで、画面側では使わない。
    */
   poiId?: number;
 };

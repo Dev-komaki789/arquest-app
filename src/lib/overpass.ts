@@ -56,36 +56,101 @@ const OVERPASS_ENDPOINTS = [
  * 例: 公園なら leisure=park、コンビニなら shop=convenience。
  * ここでは、アプリのカテゴリごとに拾いたいタグを決めている。
  *
- * ■ 選定の方針（仕様書§2.2・§1）
- *   ・お金を使わせすぎない → 飲食店を広く拾わず、カフェとパン屋程度に留める
- *   ・対人ハードルを上げすぎない → 店員との会話が要る場所は「であい」に隔離し、
- *     静かなモード（将来実装）で除外できるようにする
+ * ■ 選定の方針（仕様書§2.4・§5）
+ *   ここで拾うのは「通り道の寄り道先」であって、クエストの行き先ではない。
+ *   お題は行動カードが決めるので場所とは無関係であり、場所を絞る理由が無い。
+ *   むしろ**多いほうがよい**（一覧が寂しいと移動中の画面が虚無になる）。
+ *
+ *   旧仕様では「お金を使わせない」「対人ハードルを上げない」を場所の選定で
+ *   守ろうとして飲食店・商店を絞っていたが、確定版ではお金を使うお題も採用したので
+ *   その制約は無くなった。
+ *
+ * ■ 拾わないもの（意図的な除外。増やすときも守ること）
+ *   病院・診療所・学校・幼稚園・警察・消防・墓地・斎場。
+ *   「迷惑になる」からだけではなく、**学校の周りをうろつかせると利用者が
+ *   通報されうる**ため。アプリが勧めた以上、責任はアプリ側にある。
+ *   この一覧は許可制（書いたものだけ拾う）なので、書かなければ拾わない。
+ *
+ *   酒場（bar / pub / nightclub）も入れていない。歩いて帰る前提の遊びなので、
+ *   アプリから飲酒を勧める形にはしない。
+ *
+ * ■ 増やしすぎない理由
+ *   1つの値が問い合わせ1行になる。行が増えるほどOverpassが重くなり、
+ *   混雑時は504で落ちる。半径は§4-7の理由で要求の2倍（最大1600m）で投げるため、
+ *   都市部ほど効いてくる。増やしたら必ず梅田のような密集地で時間を測ること。
  */
 const TAG_RULES: { key: string; values: string[]; category: PoiCategory }[] = [
-  // しぜん：ただ行くだけで完結する。対人ゼロ
-  { key: "leisure", values: ["park", "garden"], category: "nature" },
+  // しぜん：緑・水・空が見えるところ
+  { key: "leisure", values: ["park", "garden", "nature_reserve"], category: "nature" },
   { key: "natural", values: ["tree", "water", "beach"], category: "nature" },
 
-  // たんけん：見て回るだけ。対人ゼロ
+  // たんけん：見て回るだけで成立するところ
   {
     key: "tourism",
-    values: ["attraction", "artwork", "viewpoint", "museum"],
+    values: ["attraction", "artwork", "viewpoint", "museum", "gallery"],
     category: "explore",
   },
-  { key: "historic", values: ["monument", "memorial", "ruins"], category: "explore" },
-  { key: "amenity", values: ["place_of_worship", "fountain"], category: "explore" },
+  {
+    key: "historic",
+    values: ["monument", "memorial", "ruins", "castle"],
+    category: "explore",
+  },
+  {
+    key: "amenity",
+    values: ["place_of_worship", "fountain", "theatre", "cinema"],
+    category: "explore",
+  },
 
-  // であい：現地で人と接する可能性がある（対人度が高い）
-  { key: "amenity", values: ["cafe", "marketplace"], category: "meet" },
-  { key: "shop", values: ["bakery", "florist"], category: "meet" },
+  // であい：人の気配がある立ち寄り先（飲食・市場）
+  {
+    key: "amenity",
+    values: ["cafe", "restaurant", "fast_food", "ice_cream", "marketplace"],
+    category: "meet",
+  },
+  { key: "shop", values: ["bakery", "confectionery", "florist"], category: "meet" },
 
   // ちいさな用事：短時間で済む実用的な立ち寄り先
-  { key: "shop", values: ["convenience"], category: "errand" },
+  // 「一番いらないものを買おう」（CARDS.md S-01）のような
+  // お金を使うお題は、この辺りが受け皿になる
+  {
+    key: "shop",
+    values: [
+      "convenience",
+      "supermarket",
+      "variety_store",
+      "books",
+      "stationery",
+      "toys",
+      "gift",
+      "clothes",
+      "second_hand",
+    ],
+    category: "errand",
+  },
   { key: "amenity", values: ["post_office", "pharmacy", "library"], category: "errand" },
 ];
 
-/** 一度に返す最大件数。多すぎると地図が埋まって読めなくなる */
-const MAX_RESULTS = 60;
+/**
+ * 画面に出す最大件数。多すぎると地図が埋まって読めなくなる。
+ *
+ * **保存の上限ではない。** ここで切ってから保存すると、
+ * 「1600m調べた」と記録したのに60件しか持っていない状態になり、
+ * 以後その範囲はキャッシュ命中して60件しか返さなくなる（HANDOFF.md §4-7 と同じ壊れ方）。
+ * 切るのは保存が済んだ後、画面に返す直前だけにすること。
+ */
+export const DISPLAY_LIMIT = 60;
+
+/**
+ * Overpassに要求する最大件数。
+ *
+ * 実測（半径1600m・名前つきのみ）:
+ *   尼崎  … 180件では足りない（喫茶店だけで55件）
+ *   梅田  … 600件でも足りない。1500件を要求すると混雑時にエラーページが返る
+ *
+ * 都市部では取り切れない前提で、**取り切れたかどうかを呼び出し元に伝える**
+ * （取り切れていない範囲を「調べ済み」と記録してはいけないため）。
+ */
+const FETCH_LIMIT = 600;
 
 /**
  * リクエストに付ける「名乗り」。
@@ -134,7 +199,7 @@ function buildQuery(lat: number, lng: number, radiusM: number): string {
     ),
   ).join("\n");
 
-  return `[out:json][timeout:25];\n(\n${conditions}\n);\nout center ${MAX_RESULTS * 3};`;
+  return `[out:json][timeout:25];\n(\n${conditions}\n);\nout center ${FETCH_LIMIT};`;
 }
 
 /** Overpass から返ってくる1件ぶんの形（必要な部分だけ） */
@@ -172,7 +237,7 @@ export async function fetchNearbyPois(
   lat: number,
   lng: number,
   radiusM: number,
-): Promise<Poi[]> {
+): Promise<{ pois: Poi[]; truncated: boolean }> {
   const query = buildQuery(lat, lng, radiusM);
 
   // どのサーバーがどう失敗したかを全部覚えておく。
@@ -228,7 +293,15 @@ export async function fetchNearbyPois(
         throw new Error(`${endpoint} からの警告: ${json.remark}`);
       }
 
-      return normalize(json.elements ?? [], lat, lng);
+      const elements = json.elements ?? [];
+
+      // 上限ちょうどで返ってきたら、その先がまだあるということ。
+      // Overpassの打ち切りは距離順ではないので、
+      // 「近いものから順に取れている」とも言えない状態になる。
+      return {
+        pois: normalize(elements, lat, lng),
+        truncated: elements.length >= FETCH_LIMIT,
+      };
     } catch (error) {
       failures.push(String(error));
       // このサーバーは駄目だったので、次のサーバーを試す
@@ -247,7 +320,9 @@ export async function fetchNearbyPois(
  *   ・座標の位置がnodeとwayで違うのを吸収する
  *   ・カテゴリに当てはまらないものを捨てる
  *   ・同じ場所の重複を除く
- *   ・近い順に並べて、件数を絞る
+ *   ・近い順に並べる
+ *
+ * **ここでは件数を絞らない。** 絞るのは保存が済んだ後（DISPLAY_LIMIT の説明を参照）。
  */
 function normalize(
   elements: OverpassElement[],
@@ -290,6 +365,5 @@ function normalize(
   // sort に渡す関数が負の数を返すと a が前に来る、という決まり。
   pois.sort((a, b) => a.distanceM - b.distanceM);
 
-  // slice(0, N) で先頭N件だけ取り出す
-  return pois.slice(0, MAX_RESULTS);
+  return pois;
 }

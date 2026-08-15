@@ -57,7 +57,7 @@
 
 import { NextRequest } from "next/server";
 
-import { fetchNearbyPois } from "@/lib/overpass";
+import { DISPLAY_LIMIT, fetchNearbyPois } from "@/lib/overpass";
 import type { Poi, PoiCategory } from "@/lib/poi";
 import { getSupabase } from "@/lib/supabase";
 
@@ -171,6 +171,7 @@ async function saveToCache(
   lat: number,
   lng: number,
   radiusM: number,
+  complete: boolean,
 ): Promise<Map<string, number>> {
   const idBySourceId = new Map<string, number>();
 
@@ -211,13 +212,24 @@ async function saveToCache(
     // 「この中心・この半径で調べた」を記録する。
     // スポットが0件でも記録する。0件だったという事実も立派な検索結果で、
     // 記録しないと「何も無い場所」で毎回Overpassに行くことになる。
-    const { error: searchError } = await db.from("poi_searches").insert({
-      center: `SRID=4326;POINT(${lng} ${lat})`,
-      radius_m: radiusM,
-    });
+    //
+    // ただし取り切れなかった（Overpassの上限で打ち切られた）ときは記録しない。
+    // 記録すると「この範囲は調べ済み」と嘘をつくことになり、
+    // 以後その円の中はキャッシュ命中して、欠けたままの結果を返し続ける。
+    // 都市部で毎回Overpassに行くのは損だが、静かに間違った結果を返すよりはよい。
+    if (complete) {
+      const { error: searchError } = await db.from("poi_searches").insert({
+        center: `SRID=4326;POINT(${lng} ${lat})`,
+        radius_m: radiusM,
+      });
 
-    if (searchError) {
-      console.error("poi_searchesの記録に失敗:", searchError.message);
+      if (searchError) {
+        console.error("poi_searchesの記録に失敗:", searchError.message);
+      }
+    } else {
+      console.warn(
+        `スポットが多すぎて取り切れなかったため、調査済みとして記録しない（半径${radiusM}m）`,
+      );
     }
   } catch (error) {
     console.error("キャッシュへの保存に失敗:", error);
@@ -280,7 +292,11 @@ export async function GET(request: NextRequest) {
         if (readError) {
           console.error("キャッシュの読み出しに失敗:", readError.message);
         } else {
-          const pois = ((data ?? []) as PoiRow[]).map(rowToPoi);
+          // pois_within は近い順に返す（距離つき）。
+          // 保存件数は表示上限より多いので、ここでも画面に出す数まで絞る。
+          const pois = ((data ?? []) as PoiRow[])
+            .slice(0, DISPLAY_LIMIT)
+            .map(rowToPoi);
           // cached: true を付けて返すと、
           // 画面側で「今のはキャッシュだった」と分かる（動作確認に便利）
           return Response.json({ pois, cached: true });
@@ -299,17 +315,32 @@ export async function GET(request: NextRequest) {
       ? Math.min(radiusM * FETCH_RADIUS_MULTIPLIER, MAX_FETCH_RADIUS_M)
       : radiusM;
 
-    const fetched = await fetchNearbyPois(lat, lng, fetchRadiusM);
+    const { pois: fetched, truncated } = await fetchNearbyPois(
+      lat,
+      lng,
+      fetchRadiusM,
+    );
 
     // 次回のために保存する。失敗しても取得結果は返す。
     // 記録する半径は「実際に取ってきた範囲」でなければならない。
     // ここに要求された半径（800m）を書くと、
     // 保存していない外側まで「調べ済み」と誤って記録することになる。
-    const idBySourceId = await saveToCache(fetched, lat, lng, fetchRadiusM);
+    //
+    // 保存するのは取れた全件。ここで表示用に絞ってから渡すと、
+    // 絞った残りかすを「その範囲の全部」として記録することになる。
+    const idBySourceId = await saveToCache(
+      fetched,
+      lat,
+      lng,
+      fetchRadiusM,
+      !truncated,
+    );
 
     // 画面に返すのは、要求された半径の中だけ。
     // 広く取ったのは保存のためであって、表示を変えるためではない。
-    const pois = fetched.filter((poi) => poi.distanceM <= radiusM);
+    const pois = fetched
+      .filter((poi) => poi.distanceM <= radiusM)
+      .slice(0, DISPLAY_LIMIT);
 
     // 保存できていれば、データベース上の番号を添えて返す
     // （仕様書§6の visit_logs から参照するために後で必要になる）。

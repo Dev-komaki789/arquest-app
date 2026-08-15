@@ -16,8 +16,8 @@
  *   getCurrentPosition … 今の位置を1回だけ教えてくれる
  *   watchPosition      … 位置が変わるたびに、何度も教えてくれる（追従）
  *
- *   このアプリは「目的地に近づいたか」を見張り続ける必要があるため
- *   （仕様書 2.3 到達判定）、watchPosition を使う。
+ *   このアプリは歩いた軌跡と距離を記録する必要があるため
+ *   （仕様書 2.7。行動カードを引いた後の区間）、watchPosition を使う。
  *
  * ■ 追従には必ず後片付けが要る
  *   watchPosition は、止めるまでずっと位置を測り続ける。
@@ -128,7 +128,7 @@ function permissionDeniedMessage(): string {
  */
 const GEO_OPTIONS: PositionOptions = {
   // GPSなど高精度な手段を使う。電池は食うが、
-  // このアプリは半径100mの到達判定をするので精度が必要。
+  // 歩いた距離を記録に残すので精度が要る（誤差がそのまま距離に化ける）。
   enableHighAccuracy: true,
 
   // 15秒待って返ってこなければ諦める（`15_000` は 15000 と同じ。読みやすさのための区切り）。
