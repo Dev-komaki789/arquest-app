@@ -435,6 +435,57 @@ create table if not exists daily_activity_stats (
 );
 
 
+-- ----------------------------------------------------------------------------
+-- 6-1. 日記の写真を置く場所（Supabase Storage）
+--
+-- ■ 非公開バケットにする
+--   public を false にすると、URLを知っていても中身は取れない。
+--   写真を見るときは、その都度**期限つきのURL**を発行して読む。
+--   仕様書§2.10の「完全に非公開」を、置き場所のレベルで守る。
+--
+-- ■ 置き場所の決まり
+--   diary/<利用者のID>/<ファイル名> という形にする。
+--   フォルダ名が利用者のIDなので、「自分のフォルダの中だけ触れる」という
+--   規則を下のポリシーで書ける。
+--
+-- ■ 大きさと種類を制限する
+--   スマホの写真はそのままだと5MBを超えることがある。
+--   アップロード前に縮小しているが（EXIF削除も兼ねる。src/lib/diary.ts）、
+--   壊れた画像や別の形式が来たときのために、こちら側でも上限を決めておく。
+-- ----------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('diary', 'diary', false, 5242880, array['image/jpeg', 'image/webp'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- 自分のフォルダの中だけ、読み書きできる。
+-- storage.foldername(name) はパスをフォルダごとに分けた配列を返すので、
+-- その1つ目（＝利用者のID）が自分と一致するかを見る。
+drop policy if exists diary_photos_select on storage.objects;
+create policy diary_photos_select on storage.objects for select
+  using (
+    bucket_id = 'diary'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists diary_photos_insert on storage.objects;
+create policy diary_photos_insert on storage.objects for insert
+  with check (
+    bucket_id = 'diary'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists diary_photos_delete on storage.objects;
+create policy diary_photos_delete on storage.objects for delete
+  using (
+    bucket_id = 'diary'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+
 -- ============================================================================
 -- 7. 権限とRLS
 --
@@ -465,9 +516,24 @@ grant all on table quests, quest_trajectories to service_role;
 grant all on table visited_cells, diary_entries, daily_activity_stats to service_role;
 
 -- 画面（ブラウザ）から触る表。RLSで守るので、権限は素直に渡してよい。
-grant select on table pois, movement_cards, action_cards to authenticated;
+grant select on table movement_cards, action_cards to authenticated;
+
+-- **pois は画面から読ませない。**
+--
+-- スポットの中身そのものはOSMの公開データだが、
+-- この表は全利用者で共有するキャッシュなので、**中身を全部見ると
+-- 「誰かがどのあたりを検索したか」が分かる**。利用者が1人なら、
+-- それはそのまま「その人がどのあたりを歩いたか」になる。
+--
+-- 画面は /api/pois（サーバー）経由でしか読んでいないので、
+-- ここを閉じても動作は変わらない。
+revoke select on table pois from authenticated;
+revoke select on table pois from anon;
 grant select, insert, update on table users, user_settings to authenticated;
-grant select, insert, update on table quests to authenticated;
+-- クエストは delete も要る。
+-- 「きょうは やめておく」（仕様書§1のパス）で、引いたクエストを消すため。
+-- これが無いと permission denied になり、やめられない。
+grant select, insert, update, delete on table quests to authenticated;
 grant select, insert on table quest_trajectories to authenticated;
 grant select, insert, update on table visited_cells to authenticated;
 grant select, insert, update, delete on table diary_entries to authenticated;
