@@ -1,0 +1,51 @@
+# Supabaseの無料プロジェクトが一時停止しないよう、毎日1回だけ触る。
+#
+# ■ なぜ要るのか
+#   無料プランは1週間ほど使わないとプロジェクトが自動で一時停止する。
+#   このアプリは仕様書§1で「気分でないときはパスしてもだいじょうぶ」と決めているのに、
+#   7日休むとデータベースが止まり、再開しようとした日に使えない——という噛み合わせになる。
+#   毎日1回、軽い読み取りを投げるだけで防げる。
+#
+# ■ なぜ「読み取り」なのか
+#   一時停止の判定はプロジェクトが使われているかで決まるので、
+#   データベースに実際に問い合わせが届く必要がある。
+#   移動カードを1件読むだけにしてあり、書き込みは一切しない。
+
+name: keep-alive
+
+on:
+  schedule:
+    # UTCで毎日3:17 = 日本時間の昼12:17。
+    #
+    # 0分ちょうどを避けているのは、毎時0分に世界中のワークフローが集中して
+    # GitHub側で数十分遅れることがあるため。何分でもよいので混む時間から外す。
+    - cron: "17 3 * * *"
+  # 手で動かして確認できるようにしておく（Actionsタブの Run workflow ボタン）
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabaseに1件だけ問い合わせる
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          # -f    … HTTPエラー（4xx/5xx）のときに失敗として扱う
+          # -sS   … 進捗は出さないが、エラーの内容は出す
+          # --retry … 一時的な通信の失敗は3回まで自動で試し直す
+          #
+          # 使うのは publishable キー（ブラウザにも配られる公開用のキー）。
+          # RLSを素通りする secret キーは、ここでは必要ないので使わない。
+          curl -fsS \
+            --retry 3 --retry-delay 10 --max-time 30 \
+            -o /dev/null -w "HTTP %{http_code} / %{time_total}秒\n" \
+            -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_PUBLISHABLE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/movement_cards?select=id&limit=1"
+
+      # ここまで来たら成功。失敗した場合はGitHubから通知メールが届くので、
+      # 「気づかないうちに止まっていた」を防げる。
+      - name: 結果
+        run: echo "Supabaseは起きている"
