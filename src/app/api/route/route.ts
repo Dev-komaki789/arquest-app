@@ -50,11 +50,14 @@ function makeCacheKey(
   return `${fromLat.toFixed(3)},${fromLng.toFixed(3)}→${toLat},${toLng}`;
 }
 
-/** 文字列を数値に変換する。数値にならなければ null */
-function toNumber(value: string | null): number | null {
-  if (value === null || value.trim() === "") return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
+/**
+ * 受け取った値を数値として取り出す。数値でなければ null。
+ *
+ * 本文（JSON）で渡ってくる値は何が入っているか分からないので、
+ * 数値であることと、計算に使える値であること（NaNや無限大でない）を確かめる。
+ */
+function toNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /** 緯度経度として成り立つ範囲かどうか */
@@ -62,12 +65,29 @@ function isValidCoord(lat: number, lng: number): boolean {
   return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
 
-export async function GET(request: NextRequest) {
-  const params = request.nextUrl.searchParams;
-  const fromLat = toNumber(params.get("fromLat"));
-  const fromLng = toNumber(params.get("fromLng"));
-  const toLat = toNumber(params.get("toLat"));
-  const toLng = toNumber(params.get("toLng"));
+/**
+ * ■ なぜ GET ではなく POST なのか
+ *   GETだと出発地と目的地がURLに乗り、サーバーのアクセスログに残る。
+ *   「いつ・どこから・どこへ行こうとしたか」を残す必要はないので、
+ *   本文で渡す形にした（/api/pois と同じ理由。詳しくはそちらの説明）。
+ */
+export async function POST(request: NextRequest) {
+  let body: {
+    fromLat?: unknown;
+    fromLng?: unknown;
+    toLat?: unknown;
+    toLng?: unknown;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "本文がJSONではありません" }, { status: 400 });
+  }
+
+  const fromLat = toNumber(body.fromLat);
+  const fromLng = toNumber(body.fromLng);
+  const toLat = toNumber(body.toLat);
+  const toLng = toNumber(body.toLng);
 
   // --- 入力の検証 ---
   // 4つのうち1つでも欠けたら計算できない

@@ -56,10 +56,14 @@ export function useNearbyPois() {
       setError(null);
 
       try {
-        // URLに条件を付けて自分のAPIを呼ぶ
-        const response = await fetch(
-          `/api/pois?lat=${lat}&lng=${lng}&radius=${radiusM}`,
-        );
+        // 条件は本文（JSON）で渡す。
+        // URLに座標を付けると、サーバーのアクセスログやブラウザの履歴に
+        // 「いつ・どこにいたか」が残ってしまうため（route.ts の説明を参照）。
+        const response = await fetch("/api/pois", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat, lng, radius: radiusM }),
+        });
 
         // 応答の中身（JSON）を取り出す。
         // 失敗時も error というメッセージが入って返ってくる作りにしてある。

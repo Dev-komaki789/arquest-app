@@ -72,9 +72,17 @@ export function useDestination() {
       setRouteProfile(null);
 
       try {
-        const response = await fetch(
-          `/api/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${poi.lat}&toLng=${poi.lng}`,
-        );
+        // 座標は本文で渡す（URLに出すとアクセスログに残るため）
+        const response = await fetch("/api/route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromLat,
+            fromLng,
+            toLat: poi.lat,
+            toLng: poi.lng,
+          }),
+        });
         const json: {
           route?: {
             distanceM: number;

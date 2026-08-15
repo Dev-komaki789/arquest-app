@@ -126,15 +126,13 @@ type PoiRow = {
 };
 
 /**
- * 文字列を数値に変換する。数値にならなければ null。
+ * 受け取った値を数値として取り出す。数値でなければ null。
  *
- * URLで渡ってくる値はすべて文字列なので、必ず変換と確認が要る。
- * Number("abc") は NaN（数値ではない）になるため、それも弾く。
+ * 本文（JSON）で渡ってくる値は何が入っているか分からないので、
+ * 数値であることと、計算に使える値であること（NaNや無限大でない）を確かめる。
  */
-function toNumber(value: string | null): number | null {
-  if (value === null || value.trim() === "") return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
+function toNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /**
@@ -239,15 +237,34 @@ async function saveToCache(
 }
 
 /**
- * GET リクエストを処理する関数。
- * 関数名を GET にするのが Next.js の決まり。
+ * POST リクエストを処理する関数。
+ * 関数名を POST にするのが Next.js の決まり。
+ *
+ * ■ なぜ GET ではなく POST なのか（位置情報を守るため）
+ *   GETだと座標がURLに乗る（/api/pois?lat=34.71…&lng=135.41…）。
+ *   URLは**サーバーのアクセスログに残る**ので、歩くたびに
+ *   「いつ・どこにいたか」がログとして溜まっていく。
+ *   本人しか見られないログだとしても、残す必要のない情報は残さない。
+ *
+ *   POSTなら座標は本文に入り、URLには何も出ない。
+ *   ブラウザの履歴・キャッシュ・Service Workerにも残らなくなる。
+ *
+ *   「取得なのにPOSTなのは行儀が悪いのでは」という見方もあるが、
+ *   位置情報を扱う場面では**ログに残さないほうを優先する**と判断した。
  */
-export async function GET(request: NextRequest) {
-  // URLの「?」以降の値を取り出す
-  const params = request.nextUrl.searchParams;
-  const lat = toNumber(params.get("lat"));
-  const lng = toNumber(params.get("lng"));
-  const radiusRaw = toNumber(params.get("radius")) ?? DEFAULT_RADIUS_M;
+export async function POST(request: NextRequest) {
+  // 本文（JSON）から値を取り出す。
+  // 壊れたJSONが送られてくることもあるので、失敗しても落ちないようにする
+  let body: { lat?: unknown; lng?: unknown; radius?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "本文がJSONではありません" }, { status: 400 });
+  }
+
+  const lat = toNumber(body.lat);
+  const lng = toNumber(body.lng);
+  const radiusRaw = toNumber(body.radius) ?? DEFAULT_RADIUS_M;
 
   // --- 入力の検証 ---
   // 外から渡される値は信用しない、というのがサーバー処理の基本。
