@@ -325,21 +325,28 @@ export async function redrawActionCard(quest: Quest): Promise<Quest> {
 }
 
 /**
- * 引いたクエストをやめる（「きょうは やめておく」）。
+ * 引いたクエストをやめる。
  *
  * ■ なぜ「やめる」を用意するのか（仕様書§1）
  *   気分でないときはパスしてよい、というのがこの遊びの前提。
  *   引いたら最後までやらせる作りにすると、次に開くのが億劫になる。
  *
- * ■ なぜ記録を残さず消すのか
- *   まだ一歩も歩いていないので、残す出来事が無い。
- *   「できなかった記録」として残すと、パスが失敗のように見えてしまう。
- *   歩いた後の「まだ」（＝行動カードまで進んだ場合）とは扱いを分ける。
+ * ■ 消さずに「終わり」にする
+ *   行を消す作りにしていたが、消すには別の権限が要り、
+ *   権限を渡し忘れると「やめられません」で止まる（実際に起きた）。
+ *   状態を done にして結果を空のままにすれば、更新の権限だけで足りる。
+ *
+ *   結果が空の行は「やった／やらなかった」のどちらでもないので、
+ *   達成した回数には数えない（profile.ts）。
+ *   パスが失敗として記録されることはない。
  */
 export async function cancelQuest(questId: string): Promise<void> {
   const supabase = getBrowserSupabase();
 
-  const { error } = await supabase.from("quests").delete().eq("id", questId);
+  const { error } = await supabase
+    .from("quests")
+    .update({ status: "done", completed_at: new Date().toISOString() })
+    .eq("id", questId);
 
   if (error) throw new Error(`やめられませんでした: ${error.message}`);
 }

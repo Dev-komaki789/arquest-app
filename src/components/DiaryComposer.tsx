@@ -87,11 +87,11 @@ export function DiaryComposer({
   }, [photo, note, questId, onSaved]);
 
   return (
-    <div className="flex w-full flex-col gap-3 rounded-2xl border border-white/15 bg-white/5 p-4">
+    <div className="flex w-full flex-col gap-3 aq-card p-4">
       <p className="text-sm font-bold">日記に書く</p>
 
       {error && (
-        <p className="rounded-xl bg-white px-3 py-2 text-xs text-[var(--navy)]">
+        <p className="rounded-xl border border-[#D2691E]/40 bg-[var(--gold-pale)] px-3 py-2 text-xs text-[var(--navy)]">
           {error}
         </p>
       )}
@@ -103,7 +103,7 @@ export function DiaryComposer({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
-            alt="えらんだ写真"
+            alt="選んだ写真"
             className="max-h-64 w-full rounded-xl object-cover"
           />
           <button
@@ -118,9 +118,9 @@ export function DiaryComposer({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-xl border border-dashed border-white/30 py-6 text-sm text-white/70"
+          className="rounded-xl border border-dashed border-[var(--navy)]/25 py-6 text-sm text-[var(--ink)]/70"
         >
-          写真をとる／えらぶ
+          写真を撮る／選ぶ
         </button>
       )}
 
@@ -138,12 +138,12 @@ export function DiaryComposer({
         onChange={(event) => setNote(event.target.value)}
         rows={3}
         maxLength={300}
-        placeholder="ひとこと（なくてもいい）"
-        className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40"
+        placeholder="ひとこと（なくても大丈夫）"
+        className="w-full rounded-xl border border-[var(--navy)]/10 bg-[var(--sky-pale)] px-3 py-2 text-sm text-[var(--navy)] placeholder:text-[var(--ink)]/45"
       />
 
-      <p className="text-xs leading-relaxed text-white/50">
-        だれにも公開されません。
+      <p className="text-xs leading-relaxed text-[var(--ink)]/55">
+        誰にも公開されません。
         <br />
         写真にうつっている撮影場所の情報は、保存する前に消しています。
       </p>
@@ -154,7 +154,7 @@ export function DiaryComposer({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="flex-1 rounded-xl border border-white/20 py-3 text-sm text-white disabled:opacity-50"
+            className="aq-btn-quiet flex-1 !py-3 !text-sm"
           >
             やめる
           </button>
@@ -163,9 +163,9 @@ export function DiaryComposer({
           type="button"
           onClick={save}
           disabled={busy}
-          className="flex-1 rounded-xl bg-[var(--gold)] py-3 text-sm font-bold text-[var(--navy)] shadow-[0_4px_0_var(--gold-deep)] active:translate-y-[3px] active:shadow-none disabled:opacity-50"
+          className="aq-btn flex-1 !py-3 !text-sm"
         >
-          {busy ? "ほぞん中…" : "のこす"}
+          {busy ? "保存中…" : "残す"}
         </button>
       </div>
     </div>

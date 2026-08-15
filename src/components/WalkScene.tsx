@@ -106,7 +106,7 @@ export function WalkScene({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-white/15"
+      className="aq-card aq-frame relative overflow-hidden"
       style={{ height: TILE_HEIGHT }}
     >
       {/* 流れる景色。同じ絵を並べて、1枚ぶんだけ左へ動かす。
@@ -131,7 +131,7 @@ export function WalkScene({
 
       {/* いまの状態。景色の上に重ねるので、後ろを暗くして文字を読めるようにする */}
       {label && (
-        <span className="blink-soft absolute right-2 top-2 rounded-full bg-[var(--navy)]/70 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+        <span className="blink-soft absolute right-3 top-3 rounded border-2 border-white bg-[var(--navy)] px-2.5 py-1 text-[11px] font-bold tracking-widest text-white">
           {label}
         </span>
       )}

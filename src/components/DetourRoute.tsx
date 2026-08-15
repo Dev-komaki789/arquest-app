@@ -31,8 +31,8 @@ const CurrentLocationMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-sm text-white/50">
-        地図を よみこんでいます…
+      <div className="flex h-64 items-center justify-center aq-card text-sm text-[var(--ink)]/55">
+        地図を読み込んでいます…
       </div>
     ),
   },
@@ -58,18 +58,18 @@ export function DetourRoute({
   onClose: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-white/15 bg-white/5 p-3">
+    <div className="flex flex-col gap-2 aq-card p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-bold">{spot.name}</p>
-          <p className="text-xs text-white/50">
-            寄り道さきへの道順。クエストとは 無関係です
+          <p className="text-xs text-[var(--ink)]/55">
+            寄り道先への道順。クエストとは無関係です
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="shrink-0 text-xs text-white/60 underline"
+          className="shrink-0 text-xs text-[var(--ink)]/60 underline"
         >
           とじる
         </button>
@@ -87,8 +87,8 @@ export function DetourRoute({
         onSelectDestination={() => {}}
       />
 
-      <p className="text-xs text-white/60">
-        {routeStatus === "loading" && "道順を しらべています…"}
+      <p className="text-xs text-[var(--ink)]/60">
+        {routeStatus === "loading" && "道順を調べています…"}
         {routeError && `道順を出せませんでした（${routeError}）`}
         {routeDistanceM !== null && (
           <>

@@ -28,8 +28,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = path.join(root, "src/assets/slime/normal.png");
 const outDir = path.join(root, "public/icons");
 
-/** 背景の色。仕様書§4のスカイブルー */
-const BACKGROUND = "#5B8DEF";
+/** 背景の色。ホームの帯と同じ緑（画面と揃える） */
+const BACKGROUND = "#DCE9CD";
 
 /**
  * 1枚作る。

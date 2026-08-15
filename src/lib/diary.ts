@@ -43,6 +43,8 @@ export type DiaryEntry = {
   createdAt: string;
   /** そのとき引いていたお題（無い場合もある） */
   questLabel: string | null;
+  /** そのときの移動カード（無い場合もある） */
+  movementLabel: string | null;
 };
 
 /**
@@ -144,8 +146,58 @@ type DiaryRow = {
   note: string | null;
   photo_url: string | null;
   created_at: string;
-  quests: { action_cards: { label: string } | null } | null;
+  quests: {
+    movement_cards: { label: string } | null;
+    action_cards: { label: string } | null;
+  } | null;
 };
+
+/** 日記1件を読むときの列の指定。一覧と詳細で同じものを使う */
+const DIARY_SELECT =
+  "id, note, photo_url, created_at, " +
+  "quests(movement_cards(label), action_cards(label))";
+
+/** データベースの1行を、画面で使う形に直す */
+function rowToEntry(row: DiaryRow): DiaryEntry {
+  return {
+    id: row.id,
+    note: row.note,
+    photoPath: row.photo_url,
+    createdAt: row.created_at,
+    questLabel: row.quests?.action_cards?.label ?? null,
+    movementLabel: row.quests?.movement_cards?.label ?? null,
+  };
+}
+
+/**
+ * 記録の数（合計と今月）。日記の画面の上に出す。
+ *
+ * 件数だけ欲しいので、中身は取らずに数えてもらう（head: true）。
+ */
+export async function countDiaryEntries(): Promise<{
+  total: number;
+  thisMonth: number;
+}> {
+  const userId = await ensureSignedIn();
+  const supabase = getBrowserSupabase();
+
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const [all, month] = await Promise.all([
+    supabase
+      .from("diary_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId),
+    supabase
+      .from("diary_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", firstDay),
+  ]);
+
+  return { total: all.count ?? 0, thisMonth: month.count ?? 0 };
+}
 
 /** 日記を新しい順に読む */
 export async function listDiaryEntries(limit = 50): Promise<DiaryEntry[]> {
@@ -154,20 +206,90 @@ export async function listDiaryEntries(limit = 50): Promise<DiaryEntry[]> {
 
   const { data, error } = await supabase
     .from("diary_entries")
-    .select("id, note, photo_url, created_at, quests(action_cards(label))")
+    .select(DIARY_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(`日記を読めませんでした: ${error.message}`);
 
-  return ((data ?? []) as unknown as DiaryRow[]).map((row) => ({
-    id: row.id,
-    note: row.note,
-    photoPath: row.photo_url,
-    createdAt: row.created_at,
-    questLabel: row.quests?.action_cards?.label ?? null,
-  }));
+  return ((data ?? []) as unknown as DiaryRow[]).map(rowToEntry);
+}
+
+/** 日記を1件だけ読む（詳細画面用） */
+export async function getDiaryEntry(id: string): Promise<DiaryEntry | null> {
+  const userId = await ensureSignedIn();
+  const supabase = getBrowserSupabase();
+
+  const { data, error } = await supabase
+    .from("diary_entries")
+    .select(DIARY_SELECT)
+    .eq("user_id", userId)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`日記を読めませんでした: ${error.message}`);
+  return data ? rowToEntry(data as unknown as DiaryRow) : null;
+}
+
+/**
+ * 日記を書き直す。
+ *
+ * @param photo 新しい写真。null なら写真はそのまま、"remove" なら消す
+ *
+ * ■ 写真を差し替えたら、古いほうは消す
+ *   残しておいても誰も見ないうえ、無料の保存容量を食う。
+ *   消し忘れを防ぐため、差し替えと削除をこの関数の中で必ず対にしてある。
+ */
+export async function updateDiaryEntry({
+  entry,
+  note,
+  photo,
+}: {
+  entry: DiaryEntry;
+  note: string;
+  photo: File | "remove" | null;
+}): Promise<void> {
+  const userId = await ensureSignedIn();
+  const supabase = getBrowserSupabase();
+
+  let photoPath = entry.photoPath;
+
+  if (photo === "remove") {
+    photoPath = null;
+  } else if (photo) {
+    // ★ここでEXIFが消える。保存より前に必ず通す
+    const cleaned = await stripExifAndShrink(photo);
+    photoPath = `${userId}/${Date.now()}.jpg`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(photoPath, cleaned, { contentType: "image/jpeg" });
+
+    if (uploadError) {
+      throw new Error(`写真を保存できませんでした: ${uploadError.message}`);
+    }
+  }
+
+  const { error } = await supabase
+    .from("diary_entries")
+    .update({
+      note: note.trim() === "" ? null : note.trim(),
+      photo_url: photoPath,
+    })
+    .eq("id", entry.id);
+
+  if (error) throw new Error(`日記を書き直せませんでした: ${error.message}`);
+
+  // 差し替え・削除で使わなくなった写真を片付ける（本文の更新が成功した後で）
+  if (entry.photoPath && entry.photoPath !== photoPath) {
+    const { error: removeError } = await supabase.storage
+      .from(BUCKET)
+      .remove([entry.photoPath]);
+    if (removeError) {
+      console.error("古い写真を消せませんでした:", removeError.message);
+    }
+  }
 }
 
 /**

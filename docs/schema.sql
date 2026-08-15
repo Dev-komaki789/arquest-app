@@ -530,10 +530,10 @@ grant select on table movement_cards, action_cards to authenticated;
 revoke select on table pois from authenticated;
 revoke select on table pois from anon;
 grant select, insert, update on table users, user_settings to authenticated;
--- クエストは delete も要る。
--- 「きょうは やめておく」（仕様書§1のパス）で、引いたクエストを消すため。
--- これが無いと permission denied になり、やめられない。
-grant select, insert, update, delete on table quests to authenticated;
+-- クエストは delete を渡していない。
+-- 「やめる」は行を消さず、状態を done にして結果を空のままにする（src/lib/quest.ts）。
+-- 消す権限を渡さずに済むほうが、間違って消える余地が無い。
+grant select, insert, update on table quests to authenticated;
 grant select, insert on table quest_trajectories to authenticated;
 grant select, insert, update on table visited_cells to authenticated;
 grant select, insert, update, delete on table diary_entries to authenticated;

@@ -52,12 +52,12 @@ export function WalkingInfoPanel({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-3">
-        <div className="flex-1 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
-          <p className="text-xs text-white/60">けいか時間</p>
-          <p className="mt-1 text-2xl font-bold">{formatElapsed(startedAt, now)}</p>
+        <div className="flex-1 aq-card px-4 py-3">
+          <p className="text-xs text-[var(--ink)]/60">経過時間</p>
+          <p className="aq-num mt-1 text-2xl font-bold">{formatElapsed(startedAt, now)}</p>
         </div>
-        <div className="flex-1 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
-          <p className="text-xs text-white/60">記録</p>
+        <div className="flex-1 aq-card px-4 py-3">
+          <p className="text-xs text-[var(--ink)]/60">記録</p>
           <p className="mt-1 text-sm leading-tight text-white/80">
             まだ
             <br />
@@ -67,20 +67,20 @@ export function WalkingInfoPanel({
       </div>
 
       {notice && (
-        <p className="whitespace-pre-line rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xs leading-relaxed text-white/70">
+        <p className="whitespace-pre-line aq-card px-4 py-3 text-xs leading-relaxed text-[var(--ink)]/70">
           {notice}
         </p>
       )}
 
-      <div className="rounded-xl border border-white/15 bg-white/5 p-4">
+      <div className="aq-card p-4">
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-bold">通り道のスポット</p>
-          <p className="text-xs text-white/50">
-            {searching ? "さがしています…" : `${spots.length}件`}
+          <p className="text-xs text-[var(--ink)]/55">
+            {searching ? "探しています…" : `${spots.length}件`}
           </p>
         </div>
-        <p className="mt-1 text-xs text-white/50">
-          クエストとは 無関係です。寄り道したいときだけ どうぞ。
+        <p className="mt-1 text-xs text-[var(--ink)]/55">
+          クエストとは無関係です。寄り道したいときだけどうぞ。
         </p>
 
         {/* 探していない理由は必ず出す。
@@ -90,10 +90,10 @@ export function WalkingInfoPanel({
         )}
 
         {spots.length === 0 ? (
-          <p className="mt-3 text-xs text-white/50">
+          <p className="mt-3 text-xs text-[var(--ink)]/55">
             {pausedReason
               ? ""
-              : "歩いていると、少しずつ たまっていきます（300mごと）。"}
+              : "歩いていると、少しずつ集まります（300mごと）。"}
           </p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
@@ -105,8 +105,8 @@ export function WalkingInfoPanel({
                   className={[
                     "flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition",
                     selectedSpotId === spot.id
-                      ? "bg-white/15"
-                      : "bg-white/5 active:bg-white/10",
+                      ? "bg-[var(--sky-pale)]"
+                      : "bg-white active:bg-white",
                   ].join(" ")}
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -119,7 +119,7 @@ export function WalkingInfoPanel({
                     />
                     <span className="truncate text-sm">{spot.name}</span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-2 text-xs text-white/60">
+                  <span className="flex shrink-0 items-center gap-2 text-xs text-[var(--ink)]/60">
                     約{Math.round(spot.distanceM)}m
                     <span className="text-[var(--gold)]">道順</span>
                   </span>

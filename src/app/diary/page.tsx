@@ -14,32 +14,35 @@
 
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import Link from "next/link";
+
 import { DiaryComposer } from "@/components/DiaryComposer";
+import { TabBar } from "@/components/TabBar";
 import {
-  deleteDiaryEntry,
+  countDiaryEntries,
   listDiaryEntries,
   signPhotoUrls,
   type DiaryEntry,
 } from "@/lib/diary";
 
-/** 「8月15日(金) 21:04」の形にする */
-function formatDate(iso: string): string {
+/** 「08/15」の形にする（一覧では日付だけ。モックアップに合わせる） */
+function formatDay(iso: string): string {
   const date = new Date(iso);
-  return new Intl.DateTimeFormat("ja-JP", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** 「21:04」 */
+function formatTime(iso: string): string {
+  const date = new Date(iso);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 export default function DiaryPage() {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  const [counts, setCounts] = useState({ total: 0, thisMonth: 0 });
   const [loading, setLoading] = useState(true);
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,11 +55,14 @@ export default function DiaryPage() {
    * 書いた直後の読み直し（ボタン）でも、同じ関数が使える。
    */
   const fetchEntries = useCallback(async () => {
-    const rows = await listDiaryEntries();
+    const [rows, counted] = await Promise.all([
+      listDiaryEntries(),
+      countDiaryEntries(),
+    ]);
     const paths = rows
       .map((row) => row.photoPath)
       .filter((path): path is string => path !== null);
-    return { rows, urls: await signPhotoUrls(paths) };
+    return { rows, counted, urls: await signPhotoUrls(paths) };
   }, []);
 
   // 開いたときに読む。
@@ -66,9 +72,10 @@ export default function DiaryPage() {
     let alive = true;
 
     fetchEntries()
-      .then(({ rows, urls }) => {
+      .then(({ rows, counted, urls }) => {
         if (!alive) return;
         setEntries(rows);
+        setCounts(counted);
         setPhotoUrls(urls);
       })
       .catch((cause: unknown) => {
@@ -87,8 +94,9 @@ export default function DiaryPage() {
   const reload = useCallback(() => {
     setLoading(true);
     fetchEntries()
-      .then(({ rows, urls }) => {
+      .then(({ rows, counted, urls }) => {
         setEntries(rows);
+        setCounts(counted);
         setPhotoUrls(urls);
       })
       .catch((cause: unknown) => {
@@ -97,32 +105,38 @@ export default function DiaryPage() {
       .finally(() => setLoading(false));
   }, [fetchEntries]);
 
-  const remove = useCallback(
-    (entry: DiaryEntry) => {
-      if (!window.confirm("この日記を消しますか。写真も一緒に消えます。")) return;
-      deleteDiaryEntry(entry)
-        .then(reload)
-        .catch((cause: unknown) => {
-          setError(cause instanceof Error ? cause.message : String(cause));
-        });
-    },
-    [reload],
-  );
-
   return (
-    <main className="min-h-dvh w-full bg-[linear-gradient(180deg,#1B2559_0%,#141C40_100%)] text-white">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-5 pb-12 pt-7">
-        <header className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold tracking-widest text-[var(--gold)]">
-              だれにも見えない記録
-            </p>
-            <h1 className="mt-1 text-2xl font-bold tracking-widest">日記</h1>
+    <main className="min-h-dvh w-full bg-[linear-gradient(180deg,var(--grass-mist)_0%,var(--paper)_40%)] pb-28">
+      {/* 緑の帯。右上に大きな丸をひとつ置く（モックアップと同じ） */}
+      <header className="relative overflow-hidden rounded-b-[28px] bg-[var(--grass-pale)] px-5 pb-7 pt-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-white/40"
+        />
+        {/* 中央寄せ。左上に置くと、片手で持ったとき視線の外になりやすい。
+            「ホームへ戻る」は下のタブにあるので、ここには置かない */}
+        <div className="relative mx-auto w-full max-w-md text-center">
+          <h1 className="text-[30px] font-bold tracking-[0.12em]">日記帳</h1>
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-xs font-bold">
+            <span aria-hidden="true">🔒</span>
+            非公開・自分だけの記録
+          </p>
+        </div>
+      </header>
+
+      <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-5 pt-5">
+
+        {/* 記録の数（モックアップと同じく、一覧の上に2つ並べる） */}
+        <div className="flex gap-3">
+          <div className="flex-1 aq-card px-4 py-3 text-center">
+            <p className="text-xs text-[var(--ink)]/60">記録した数</p>
+            <p className="aq-num mt-1 text-2xl font-bold">{counts.total}</p>
           </div>
-          <Link href="/" className="text-sm text-white/60 underline">
-            もどる
-          </Link>
-        </header>
+          <div className="flex-1 aq-card px-4 py-3 text-center">
+            <p className="text-xs text-[var(--ink)]/60">今月</p>
+            <p className="aq-num mt-1 text-2xl font-bold">{counts.thisMonth}</p>
+          </div>
+        </div>
 
         {error && (
           <p className="rounded-xl bg-white px-4 py-3 text-sm text-[var(--navy)]">
@@ -142,67 +156,82 @@ export default function DiaryPage() {
           <button
             type="button"
             onClick={() => setWriting(true)}
-            className="rounded-xl bg-[var(--gold)] py-4 text-base font-bold text-[var(--navy)] shadow-[0_4px_0_var(--gold-deep)] active:translate-y-[3px] active:shadow-none"
+            className="aq-btn"
           >
-            あたらしく 書く
+            新しく書く
           </button>
         )}
 
         {loading ? (
-          <p className="py-16 text-center text-sm text-white/60">よみこみ中…</p>
+          <p className="py-16 text-center text-sm text-[var(--ink)]/60">読み込み中…</p>
         ) : entries.length === 0 ? (
-          <p className="py-16 text-center text-sm leading-relaxed text-white/50">
-            まだ なにもありません。
+          <p className="py-16 text-center text-sm leading-relaxed text-[var(--ink)]/55">
+            まだ何もありません。
             <br />
-            歩いたときに、見つけたものを のこしてみてください。
+            歩いたときに、見つけたものを残してみてください。
           </p>
         ) : (
           <ul className="flex flex-col gap-4">
             {entries.map((entry) => {
               const url = entry.photoPath ? photoUrls.get(entry.photoPath) : null;
               return (
-                <li
-                  key={entry.id}
-                  className="overflow-hidden rounded-2xl border border-white/15 bg-white/5"
-                >
-                  {url && (
-                    /* 期限つきURLの写真。毎回URLが変わるので最適化は通さない */
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={url}
-                      alt=""
-                      className="max-h-72 w-full object-cover"
-                      loading="lazy"
-                    />
-                  )}
-                  <div className="flex flex-col gap-2 p-4">
-                    <p className="text-xs text-white/50">
-                      {formatDate(entry.createdAt)}
-                    </p>
-                    {entry.questLabel && (
-                      <p className="text-xs text-[var(--gold)]">
-                        {entry.questLabel}
-                      </p>
+                <li key={entry.id}>
+                  {/* 行ごと押して詳細へ。編集と削除は詳細の画面で行う。
+                      一覧に消すボタンを置くと、指が触れただけで消えかねない */}
+                  <Link
+                    href={`/diary/${entry.id}`}
+                    className="aq-card flex items-center gap-3 p-3 active:bg-[var(--grass-mist)]"
+                  >
+                    {url ? (
+                      /* 期限つきURLの写真。毎回URLが変わるので最適化は通さない */
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-[88px] w-[88px] shrink-0 rounded-2xl object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-2xl bg-[var(--grass-mist)] text-2xl"
+                      >
+                        📝
+                      </span>
                     )}
-                    {entry.note && (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {entry.note}
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-[var(--grass)]">
+                        {formatDay(entry.createdAt)}
+                        <span className="ml-2 font-normal text-[var(--ink-muted)]">
+                          {formatTime(entry.createdAt)}
+                        </span>
                       </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => remove(entry)}
-                      className="self-end text-xs text-white/40 underline"
+                      {entry.questLabel && (
+                        <p className="mt-0.5 line-clamp-2 text-sm font-bold leading-snug">
+                          {entry.questLabel}
+                        </p>
+                      )}
+                      <p className="mt-0.5 truncate text-xs text-[var(--ink-muted)]">
+                        {entry.note ?? "（メモなし）"}
+                      </p>
+                    </div>
+
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 pr-1 text-xl text-[var(--ink-muted)]"
                     >
-                      消す
-                    </button>
-                  </div>
+                      ›
+                    </span>
+                  </Link>
                 </li>
               );
             })}
           </ul>
         )}
       </div>
+
+      <TabBar />
     </main>
   );
 }

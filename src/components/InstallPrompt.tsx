@@ -109,7 +109,7 @@ export function InstallPrompt() {
       <button
         type="button"
         onClick={install}
-        className="w-full rounded-2xl border-2 border-white/70 bg-white/20 px-4 py-3 text-sm font-bold text-white backdrop-blur active:bg-white/30"
+        className="aq-card w-full px-4 py-3 text-sm font-bold text-[var(--sky-deep)]"
       >
         ホーム画面に追加する
       </button>
@@ -118,7 +118,7 @@ export function InstallPrompt() {
 
   if (isIos) {
     return (
-      <p className="rounded-2xl bg-white/20 px-4 py-3 text-xs leading-relaxed text-white backdrop-blur">
+      <p className="aq-card px-4 py-3 text-xs leading-relaxed text-[var(--ink)]/70">
         ホーム画面に追加すると、アプリのように開けます。
         <br />
         下の共有ボタン → 「ホーム画面に追加」

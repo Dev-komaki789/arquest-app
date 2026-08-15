@@ -1,6 +1,36 @@
 @import "tailwindcss";
 
 /**
+ * ============================================================
+ * アルクエストの見た目の決まりごと
+ * ============================================================
+ *
+ * ■ 屋外で、片手で、一瞬しか見ない
+ *   歩きながら日なたで開くので、**明るい背景に濃い文字**にする。
+ *   触るものは指の幅（48px以上）を確保する。
+ *
+ * ■ 主役はカード1枚
+ *   画面でいちばん大きく明るいのがカード。
+ *   それ以外（数字・設定・注記）は、白地に薄い影で静かに置く。
+ *   枠線を多用すると全部が同じ強さになって、目が行き先を決められない。
+ *
+ * ■ RPGらしさは「窓」と「数字」で出す
+ *   ドラクエ風の見た目を作るとき、いちばん効くのは
+ *   **紺地に白縁のメッセージウィンドウ**と、**ドットの数字**。
+ *   背景まで暗くすると屋外で読みにくくなるので、
+ *   地の色は明るいまま、窓と数字だけを「らしく」する。
+ *
+ *   飾りを増やすほどRPGになるわけではない。
+ *   線を増やすと屋外での可読性が落ちるので、**窓・枠・数字の3つに絞る**。
+ *
+ * ■ 色の役割を決めて、混ぜない
+ *   スカイブルー … 画面の帯・現在地・リンク
+ *   ゴールド     … 「進む」ボタンと、ごほうび（EXP）だけ
+ *   ピンク       … 相棒だけ（画面の中で相棒を探せるようにする）
+ *   紺           … 文字
+ */
+
+/**
  * アルクエストの配色（仕様書§4／モックアップ screen-shot/ に準拠）
  *
  * ■ ゴールドの使いどころ
@@ -12,27 +42,198 @@
  *   この2つだけが紺地なので、相棒の言葉が特別に見える。
  */
 :root {
-  --sky: #5b8def; /* 基本のスカイブルー */
-  --sky-deep: #3e6fd8; /* 押したとき・濃い方 */
-  --sky-pale: #e8effb; /* 画面の下半分の背景 */
-  --navy: #1e2a4a; /* 文字・メッセージウィンドウ */
-  --gold: #f5b942; /* ごほうび・進むボタン */
-  --gold-pale: #fff3de; /* 強調カードの背景 */
+  /* 緑（散歩の色）。ボタン・見出し・強調はこの系統 */
+  --grass: #4e7233; /* 主ボタン・見出し */
+  --grass-deep: #3f5c29; /* 押したとき */
+  --grass-pale: #dce9cd; /* 画面上の帯 */
+  --grass-mist: #eef5e4; /* 画面の地の色（上） */
+
+  --paper: #f4f8ee; /* 画面の地の色（下） */
+  --ink: #2f3a24; /* 文字 */
+  --ink-muted: rgba(47, 58, 36, 0.55);
+
+  /* 前の配色。相棒の絵と地図の線でまだ使う */
+  --sky: #5b8def;
+  --sky-deep: #3e6fd8;
+  --sky-pale: #e8effb;
+  --navy: #1e2a4a;
+  --gold: #f5b942;
   --gold-deep: #e0a93c;
-  --grass: #4caf7d;
-  --face: #c7ddf7; /* 相棒の顔 */
-  --blush: #f2a0b0;
+
+  --shadow-card: 0 2px 14px rgba(47, 58, 36, 0.08);
+  --shadow-hero: 0 12px 28px rgba(47, 58, 36, 0.16);
+}
+
+/**
+ * よく使う見た目をまとめておく。
+ *
+ * 同じ形を画面ごとに書き写すと、少しずつズレて「揃っていない画面」になる。
+ * 名前を付けて1か所に置き、変えるときもここだけ直す。
+ */
+@layer components {
+  /* 情報を載せる白い面。枠線ではなく影で浮かせる */
+  .aq-card {
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* 主役のカード（お告げの文面）。いちばん強く浮かせる */
+  .aq-hero {
+    background: #fff;
+    border-radius: 26px;
+    box-shadow: var(--shadow-hero);
+  }
+
+  /* 数字を並べる小さな面 */
+  .aq-tile {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+    padding: 0.75rem;
+    text-align: center;
+  }
+
+  /* 小見出し。小さく・字間を広く・薄く */
+  .aq-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: var(--ink-muted);
+  }
+
+  /* 進むボタン（ゴールド）。押すと沈む */
+  .aq-btn {
+    display: block;
+    width: 100%;
+    border-radius: 14px;
+    padding: 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #fff;
+    background: linear-gradient(180deg, #5b8340 0%, var(--grass) 100%);
+    box-shadow:
+      0 3px 0 var(--grass-deep),
+      0 6px 14px rgba(78, 114, 51, 0.28);
+    transition: transform 0.08s ease;
+  }
+  .aq-btn:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow: none;
+  }
+  .aq-btn:disabled {
+    opacity: 0.5;
+  }
+
+  /* 迷ったときの選択肢（白） */
+  .aq-btn-quiet {
+    display: block;
+    width: 100%;
+    border-radius: 14px;
+    padding: 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    background: #fff;
+    box-shadow: var(--shadow-card);
+  }
+  .aq-btn-quiet:disabled {
+    opacity: 0.5;
+  }
+
+  /**
+   * 文字だけのボタン。
+   *
+   * 見た目は控えめでも、**押せる範囲は指の幅（48px）を確保する。**
+   * 文字の高さぶんしか無いと、歩きながらでは押せない。
+   */
+  .aq-btn-text {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--ink-muted);
+    text-decoration: underline;
+  }
+
+  /**
+   * メッセージウィンドウ（相棒が喋る場所）。
+   *
+   * 紺地に白の二重枠。外側を濃く、内側を明るくすると窓らしく見える。
+   * 仕様書§4のモチーフで、このアプリでいちばんRPGらしい部分。
+   */
+  .aq-window {
+    position: relative;
+    background: #fff;
+    color: var(--ink);
+    border-radius: 20px;
+    box-shadow: var(--shadow-card);
+    padding: 0.9rem 1.1rem 1.5rem;
+    line-height: 1.9;
+  }
+
+  /* 窓の中の名前。ゴールドで小さく */
+  .aq-window-name {
+    color: var(--grass);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    margin-bottom: 0.25rem;
+  }
+
+  /* 続きの印（▼）。ゆっくり点滅させる */
+  .aq-window::after {
+    content: "▼";
+    position: absolute;
+    right: 0.7rem;
+    bottom: 0.45rem;
+    font-size: 11px;
+    color: var(--grass);
+    animation: blink-soft 1.6s ease-in-out infinite;
+  }
+
+  /**
+   * 窓枠（カード・タイルにかける二重の枠）。
+   *
+   * 白いカードの内側に薄い線をもう1本引くだけ。
+   * これがあるだけで「ただの白い箱」が「メニューの窓」に見える。
+   */
+  .aq-frame {
+    box-shadow: var(--shadow-card);
+  }
+
+  /* 数える数字。ドット書体・字間を広めに */
+  .aq-num {
+    font-family: var(--font-pixel), ui-monospace, monospace;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 小さな札 */
+  .aq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 11px;
+    font-weight: 700;
+  }
 }
 
 @theme inline {
-  --color-sky: var(--sky);
-  --color-sky-deep: var(--sky-deep);
-  --color-sky-pale: var(--sky-pale);
-  --color-navy: var(--navy);
-  --color-gold: var(--gold);
-  --color-gold-pale: var(--gold-pale);
-  --color-gold-deep: var(--gold-deep);
   --color-grass: var(--grass);
+  --color-grass-deep: var(--grass-deep);
+  --color-grass-pale: var(--grass-pale);
+  --color-ink: var(--ink);
+  --color-gold: var(--gold);
+  --color-navy: var(--navy);
+  --color-sky: var(--sky);
 }
 
 /**
@@ -223,6 +424,99 @@
 }
 
 /**
+ * 紙吹雪（Confetti.tsx）。
+ *
+ * 上から下へゆっくり落ちながら、左右に揺れて回る。
+ * 落ちる距離・揺れ幅・回り方は紙ごとに変えていて、
+ * 同じ動きが並ばないようにしてある。
+ */
+@keyframes flake-fall {
+  0% {
+    transform: translate(0, -20px) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--sway), calc(var(--fall) * 0.5))
+      rotate(calc(var(--spin) * 0.5));
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--sway) * -0.6), var(--fall))
+      rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+.aq-flake {
+  animation-name: flake-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* 達成の見出しが、勢いよく出てくる */
+@keyframes rise-in {
+  from {
+    transform: translateY(14px) scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.aq-rise {
+  animation: rise-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+/**
+ * めくる前のカードが、ゆっくり揺れる。
+ *
+ * 「押せる」と分かってもらうための動き。止まっている四角は、
+ * スマホだと飾りに見えて押されないことがある。
+ * 大きく動かすと落ち着かないので、傾きは2度まで。
+ */
+@keyframes card-wobble {
+  0%,
+  100% {
+    transform: rotate(-1.8deg) translateY(0);
+  }
+  50% {
+    transform: rotate(1.8deg) translateY(-4px);
+  }
+}
+
+.aq-wobble {
+  animation: card-wobble 2.6s ease-in-out infinite;
+}
+
+/**
+ * カードをめくる動き（CardFlip.tsx）。
+ *
+ * 横に一回転させる。半分回ったところ（＝真横を向いて見えなくなる瞬間）で
+ * 中身を裏から表に差し替えるので、めくったように見える。
+ * 時間は CardFlip.tsx の FLIP_MS と合わせること。
+ */
+@keyframes card-flip {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
+.aq-flip {
+  animation: card-flip 0.46s ease-in-out;
+  transform-style: preserve-3d;
+}
+
+/**
  * 「移動中…」の点滅。
  *
  * 完全に消さず、薄くするだけにしている。
@@ -250,7 +544,11 @@
   .slime-hop-normal,
   .slime-hop-squashed,
   .scene-scroll,
-  .blink-soft {
+  .blink-soft,
+  .aq-flip,
+  .aq-wobble,
+  .aq-flake,
+  .aq-rise {
     animation: none;
   }
 
@@ -260,9 +558,21 @@
   }
 }
 
+html {
+  /*
+   * スクロールバーの場所を、出ていないときも空けておく。
+   *
+   * これが無いと、中身が短い画面（スクロールバー無し）と
+   * 長い画面（スクロールバー有り）で使える幅が変わり、
+   * **中央寄せしているものが画面ごとに横へずれる。**
+   * 下のナビバーのアイコンがずれて見えたのはこれが原因。
+   */
+  scrollbar-gutter: stable;
+}
+
 body {
-  color: var(--navy);
-  background: var(--sky-pale);
+  color: var(--ink);
+  background: var(--paper);
 
   /*
    * 日本語の書体。

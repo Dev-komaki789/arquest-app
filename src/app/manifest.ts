@@ -20,15 +20,15 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "アルクエスト",
     // ホーム画面のアイコンの下に出る名前。長いと省略されるので短く
     short_name: "アルクエスト",
-    description: "散歩を遊びに。カードを2枚引いて、きょうのぼうけんを決める。",
+    description: "散歩を遊びに。カードを2枚めくって、今日の冒険を決める。",
     // 開いたときに表示する場所
     start_url: "/",
     // standalone … ブラウザのアドレス欄を出さず、アプリのように全画面で開く
     display: "standalone",
-    // 起動直後、画面が描かれるまでの間に見える色。背景の空色に合わせる
-    background_color: "#5B8DEF",
-    // Androidの上部（時計や電池が並ぶ帯）の色
-    theme_color: "#5B8DEF",
+    // 起動直後、画面が描かれるまでの間に見える色。画面の地の色に合わせる
+    background_color: "#EEF5E4",
+    // Androidの上部（時計や電池が並ぶ帯）の色。ホームの帯と同じ緑
+    theme_color: "#DCE9CD",
     // 縦向き固定。歩きながら片手で使うので横向きにする理由がない
     orientation: "portrait",
     lang: "ja",

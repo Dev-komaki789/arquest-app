@@ -95,7 +95,7 @@ export function useWalkingInfo(enabled: boolean): WalkingInfo {
         );
         // 時間が進んでいないときは計算できないので、判定を飛ばす
         if (seconds > 1 && moved / seconds > VEHICLE_SPEED_MPS) {
-          setPausedReason("のりもの で移動中みたいなので、お休みしています");
+          setPausedReason("乗り物で移動中みたいなので、お休みしています");
           return;
         }
       }
@@ -140,7 +140,7 @@ export function useWalkingInfo(enabled: boolean): WalkingInfo {
 
   const notice =
     enabled && status === "error" && error
-      ? `${error}\n通り道のスポットだけ お休みします（クエストは そのまま続けられます）。`
+      ? `${error}\n通り道のスポットだけお休みします（クエストは そのまま続けられます）。`
       : null;
 
   return {
