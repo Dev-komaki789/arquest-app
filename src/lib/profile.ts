@@ -3,13 +3,18 @@
  * ホーム画面に出す、自分の記録
  * ============================================================
  *
- * ■ 何を出すか（モックアップ screen-shot/02-home.png の構成）
- *   レベル・EXP・きょう歩いた距離・達成したクエスト数・次の稼働時間。
+ * ■ 何を出すか
+ *   レベル・EXP・達成したクエスト数・次の稼働時間。
+ *
+ * ■ 距離は出さない（位置情報を廃止したため）
+ *   モックアップにあった「きょう歩いた距離」「累計」は、GPSごと取り外した。
+ *   users.total_distance_m と daily_activity_stats はテーブルとしては残っているが、
+ *   もう増えないので読まない。
  *
  * ■ 「連続◯日」は出さない（仕様書§10）
  *   モックアップには「連続 12日」があるが、不採用にしている。
  *   雨の日など出かけなくて当然の日で途切れ、罰のように働くため。
- *   代わりに、途切れても減らない数（累計の距離・達成数）を置く。
+ *   代わりに、途切れても減らない数（達成数）を置く。
  */
 
 import { ensureSignedIn, getBrowserSupabase } from "@/lib/supabase-browser";
@@ -22,9 +27,6 @@ export type Profile = {
   exp: number;
   /** いまのレベルの中で、どこまで進んだか（0〜EXP_PER_LEVEL） */
   expInLevel: number;
-  totalDistanceM: number;
-  /** きょう歩いた距離 */
-  todayDistanceM: number;
   /** これまでに終えたクエストの数 */
   questsDone: number;
   /** 次にクエストを受けられる時間帯（設定してあれば） */
@@ -41,20 +43,12 @@ export async function loadProfile(): Promise<Profile> {
   const supabase = getBrowserSupabase();
 
   const today = new Date();
-  // その日のうちに閉じた記録を見たいので、端末の日付をそのまま使う
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-  const [me, todayStat, doneCount, settings] = await Promise.all([
+  const [me, doneCount, settings] = await Promise.all([
     supabase
       .from("users")
-      .select("companion_level, companion_exp, total_distance_m")
+      .select("companion_level, companion_exp")
       .eq("id", userId)
-      .maybeSingle(),
-    supabase
-      .from("daily_activity_stats")
-      .select("distance_m")
-      .eq("user_id", userId)
-      .eq("activity_date", todayKey)
       .maybeSingle(),
     // head: true は「中身は要らない、件数だけ数えて」という指定。
     // 結果（できた／まだ）が入っているものだけ数える。
@@ -84,8 +78,6 @@ export async function loadProfile(): Promise<Profile> {
     level: me.data?.companion_level ?? 1,
     exp,
     expInLevel: exp % EXP_PER_LEVEL,
-    totalDistanceM: me.data?.total_distance_m ?? 0,
-    todayDistanceM: todayStat.data?.distance_m ?? 0,
     questsDone: doneCount.count ?? 0,
     nextWindow: start
       ? { label: weekend ? "休日の時間帯" : "平日の時間帯", start: trimSeconds(start) }

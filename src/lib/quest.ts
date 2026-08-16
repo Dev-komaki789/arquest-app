@@ -358,10 +358,6 @@ export type QuestReward = {
   /** 通算のEXPとレベル */
   companionExp: number;
   companionLevel: number;
-  /** 今回歩いた距離（メートル） */
-  distanceM: number;
-  /** 地図に新しいマスが塗られたか */
-  newCell: boolean;
 };
 
 /**
@@ -372,27 +368,25 @@ export type QuestReward = {
  *   来たこと自体は残るし、EXPも0にはならない。
  *
  * ■ まとめて1回で頼む理由
- *   終了時にやることが4つある（クエストの更新／EXP／地図を塗る／日ごとの集計）。
- *   画面から4回に分けて頼むと、途中で通信が切れたときに
+ *   終了時にやることが2つある（クエストの更新／EXP）。
+ *   画面から2回に分けて頼むと、途中で通信が切れたときに
  *   「終わったのにEXPが増えていない」という半端な状態が残る。
  *   データベース側の complete_quest にまとめてあるので、ここは1回呼ぶだけ。
+ *
+ * ■ 距離と完了地点は渡さない（位置情報を廃止したため）
+ *   complete_quest 側の p_distance_m / p_lat / p_lng には既定値があるので、
+ *   渡さなければ距離0・地図を塗らない、として扱われる。
+ *   EXPは「できた20／まだ10」の固定になり、距離による加算は無くなった。
  */
 export async function finishQuest(
   questId: string,
   result: ActionResult,
-  distanceM: number,
-  position: { lat: number; lng: number } | null,
 ): Promise<{ quest: Quest; reward: QuestReward }> {
   const supabase = getBrowserSupabase();
 
   const { data: rewardRows, error } = await supabase.rpc("complete_quest", {
     p_quest_id: questId,
     p_result: result,
-    // 距離はメートルの整数で渡す。小数のままだと集計が読みにくい
-    p_distance_m: Math.round(distanceM),
-    // 位置情報を使えなかったときは null。その場合は地図を塗らない
-    p_lat: position?.lat ?? null,
-    p_lng: position?.lng ?? null,
   });
 
   if (error) throw new Error(`終わりにできませんでした: ${error.message}`);
@@ -418,8 +412,6 @@ export async function finishQuest(
       expGained: row?.exp_gained ?? 0,
       companionExp: row?.total_exp ?? 0,
       companionLevel: row?.level_now ?? 1,
-      distanceM: row?.walked_m ?? 0,
-      newCell: row?.new_cell ?? false,
     },
   };
 }

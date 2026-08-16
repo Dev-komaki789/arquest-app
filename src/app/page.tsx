@@ -6,12 +6,18 @@
  * ■ 画面の並び（screen-images/ のモックアップに準拠）
  *   ホーム → 移動カード（めくる）→ 移動中 → 行動カード（めくる）→ 達成
  *
- * ■ 位置情報を使う区間は限られている
+ * ■ 位置情報は一切使わない
  *   移動カードは座標に紐付かず、到着もGPSではなく自己申告なので、
- *   移動中は位置情報を使わない（仕様書§2.2）。使うのは次の2つだけ。
- *     ・行動カードを引いた後の、軌跡と距離の記録（§2.7）
- *     ・設定でオンにしたときの、通り道のスポット探し（§2.4）
- *   どちらも画面に「いつ始まるか」を書いてある。黙って取り始めない。
+ *   もともとこの遊びに位置情報は要らない（仕様書§2.2）。
+ *   以前は「行動カードを引いた後の軌跡の記録」と「通り道のスポット探し」で
+ *   使っていたが、どちらも廃止した。理由は下記。
+ *
+ *   クエストが acting のまま閉じられると、次に開いたときに
+ *   利用者の操作なしで高精度GPSが起動し、止まる条件が
+ *   「acting でなくなること」しか無かった。画面を消しても止まらないため、
+ *   実機で5時間動き続けて電池を使い切った。
+ *   「開いただけで測位が始まり、利用者には止める手段が無い」という作りは、
+ *   歩数や距離の記録と引き換えにしてよいものではないと判断して取り外した。
  *
  * ■ カードは「引く」ではなく「めくる」
  *   どのカードかは画面に来た時点で決まっていて、タップは開く動作。
@@ -26,32 +32,13 @@ import { useEffect, useState } from "react";
 import { CardFlip } from "@/components/CardFlip";
 import { Companion } from "@/components/Companion";
 import { Confetti } from "@/components/Confetti";
-import { DetourRoute } from "@/components/DetourRoute";
 import { DiaryComposer } from "@/components/DiaryComposer";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { TabBar } from "@/components/TabBar";
-import { WalkingInfoPanel } from "@/components/WalkingInfoPanel";
 import { WalkScene } from "@/components/WalkScene";
-import { useDestination } from "@/hooks/useDestination";
 import { useQuest } from "@/hooks/useQuest";
-import { useQuestTrail } from "@/hooks/useQuestTrail";
-import { useWalkingInfo } from "@/hooks/useWalkingInfo";
 import { EXP_PER_LEVEL, loadProfile, type Profile } from "@/lib/profile";
 import { isWeekend, MAX_REDRAW } from "@/lib/quest";
-import { loadSettings, setShowWalkingInfo } from "@/lib/settings";
-
-/** 距離を読みやすく。1km未満はm、それ以上はkm */
-function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)}m`;
-  return `${(meters / 1000).toFixed(1)}km`;
-}
-
-/** 数字と単位を分ける（単位だけ小さく出すため） */
-function splitDistance(meters: number): { value: string; unit: string } {
-  return meters < 1000
-    ? { value: String(Math.round(meters)), unit: "m" }
-    : { value: (meters / 1000).toFixed(1), unit: "km" };
-}
 
 /** 相棒のセリフ（白い吹き出し・右下に▼） */
 function Speech({ children }: { children: React.ReactNode }) {
@@ -121,40 +108,6 @@ export default function Page() {
   const moving = quest?.status === "moving";
   const onTheRoad = Boolean(moving && departed);
 
-  // 移動中の表示（仕様書§2.4）。既定はオフ
-  const [showWalking, setShowWalking] = useState(false);
-  const walkingInfo = useWalkingInfo(showWalking && onTheRoad);
-  const detour = useDestination();
-
-  // 経過時間を1秒ごとに描き直すための、いまの時刻
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!onTheRoad) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [onTheRoad]);
-
-  useEffect(() => {
-    let alive = true;
-    loadSettings()
-      .then((settings) => {
-        if (alive) setShowWalking(settings.showWalkingInfo);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const toggleWalking = (value: boolean) => {
-    setShowWalking(value);
-    void setShowWalkingInfo(value).catch(() => {});
-  };
-
-  // 行動カードを引いた後だけ、歩いた距離と軌跡を記録する（仕様書§2.7）
-  const trail = useQuestTrail(quest);
-  const walked = { distanceM: trail.distanceM, position: trail.lastPosition };
-
   // ホームに出す記録。1回終えるたびに読み直す
   const [profile, setProfile] = useState<Profile | null>(null);
   useEffect(() => {
@@ -168,9 +121,6 @@ export default function Page() {
       alive = false;
     };
   }, [finished]);
-
-  const today = splitDistance(profile?.todayDistanceM ?? 0);
-  const total = splitDistance(profile?.totalDistanceM ?? 0);
 
   return (
     <main className="min-h-dvh w-full bg-[linear-gradient(180deg,var(--grass-mist)_0%,var(--paper)_45%)] pb-28">
@@ -236,25 +186,11 @@ export default function Page() {
 
           {reward && (
             <div className="aq-card aq-rise mt-2 w-full px-5 py-5">
-              <dl className="flex flex-col gap-3">
-                {[
-                  { label: "EXP", value: `+${reward.expGained}` },
-                  {
-                    label: "歩いた距離",
-                    value: formatDistance(reward.distanceM),
-                  },
-                  { label: "塗ったマス", value: reward.newCell ? "+1" : "±0" },
-                ].map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-baseline justify-between"
-                  >
-                    <dt className="text-sm">{row.label}</dt>
-                    <dd className="text-xl font-bold text-[var(--grass)]">
-                      {row.value}
-                    </dd>
-                  </div>
-                ))}
+              <dl className="flex items-baseline justify-between">
+                <dt className="text-sm">EXP</dt>
+                <dd className="text-xl font-bold text-[var(--grass)]">
+                  +{reward.expGained}
+                </dd>
               </dl>
 
               <div className="mt-4 flex items-center gap-3 border-t border-[var(--ink)]/10 pt-4">
@@ -369,17 +305,13 @@ export default function Page() {
               日記を見る
             </Link>
 
+            {/* 距離のタイル（今日・累計）は、位置情報の廃止にあわせて外した。
+                残るのは「途切れても減らない数」という当初の方針どおりの達成数だけ（仕様書§10） */}
             <div className="mt-2 flex gap-3">
               <div className="aq-tile flex-1">
-                <p className="text-[11px] text-[var(--ink-muted)]">今日</p>
-                <Amount value={today.value} unit={today.unit} />
-              </div>
-              <div className="aq-tile flex-1">
-                <p className="text-[11px] text-[var(--ink-muted)]">累計</p>
-                <Amount value={total.value} unit={total.unit} />
-              </div>
-              <div className="aq-tile flex-1">
-                <p className="text-[11px] text-[var(--ink-muted)]">クエスト</p>
+                <p className="text-[11px] text-[var(--ink-muted)]">
+                  達成したクエスト
+                </p>
                 <Amount value={String(profile?.questsDone ?? 0)} unit="件" />
               </div>
             </div>
@@ -487,81 +419,11 @@ export default function Page() {
             <Speech>いい天気だね。好きなペースで大丈夫。</Speech>
           </div>
 
-          {/* 切り替えは行ごと押せるようにする。
-              小さな四角だけを狙わせると、歩きながらでは押せない */}
-          <button
-            type="button"
-            onClick={() => toggleWalking(!showWalking)}
-            className="aq-card flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
-          >
-            <span className="text-sm font-bold">
-              移動中の表示
-              <span className="mt-0.5 block text-xs font-normal text-[var(--ink-muted)]">
-                {showWalking
-                  ? "位置情報を使って、通り道のスポットを探しています"
-                  : "オンにすると、時間と通り道のスポットが出ます"}
-              </span>
-            </span>
-            {/* 見た目だけのスイッチ。押すのは行全体 */}
-            <span
-              aria-hidden="true"
-              className={[
-                "relative h-8 w-14 shrink-0 rounded-full transition",
-                showWalking ? "bg-[var(--grass)]" : "bg-[var(--ink)]/15",
-              ].join(" ")}
-            >
-              <span
-                className={[
-                  "absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all",
-                  showWalking ? "left-7" : "left-1",
-                ].join(" ")}
-              />
-            </span>
-          </button>
-
-          {showWalking ? (
-            <WalkingInfoPanel
-              startedAt={quest.createdAt}
-              now={now}
-              spots={walkingInfo.spots}
-              pausedReason={walkingInfo.pausedReason}
-              notice={walkingInfo.notice}
-              searching={walkingInfo.searching}
-              selectedSpotId={detour.destination?.id ?? null}
-              onSelectSpot={(spot) => {
-                if (detour.destination?.id === spot.id) {
-                  detour.clearDestination();
-                  return;
-                }
-                if (!walkingInfo.here) return;
-                void detour.selectDestination(
-                  spot,
-                  walkingInfo.here.lat,
-                  walkingInfo.here.lng,
-                );
-              }}
-              routeSlot={
-                detour.destination && walkingInfo.here ? (
-                  <DetourRoute
-                    spot={detour.destination}
-                    here={walkingInfo.here}
-                    routeCoordinates={detour.routeCoordinates}
-                    routeDistanceM={detour.routeDistanceM}
-                    routeProfile={detour.routeProfile}
-                    routeStatus={detour.routeStatus}
-                    routeError={detour.routeError}
-                    onClose={detour.clearDestination}
-                  />
-                ) : null
-              }
-            />
-          ) : (
-            <p className="text-center text-xs leading-relaxed text-[var(--ink-muted)]">
-              ここまでは位置情報を使っていません。
-              <br />
-              着いたと思ったら、自分で押してね。
-            </p>
-          )}
+          <p className="text-center text-xs leading-relaxed text-[var(--ink-muted)]">
+            このアプリは位置情報を使いません。
+            <br />
+            着いたと思ったら、自分で押してね。
+          </p>
 
           <div className="mt-2 flex flex-col gap-3">
             <button
@@ -628,26 +490,6 @@ export default function Page() {
                 </p>
               )}
 
-              {/* ここが位置情報の境目。黙って始めない */}
-              {trail.notice ? (
-                <p className="aq-card whitespace-pre-line px-4 py-3 text-xs leading-relaxed text-[var(--ink-muted)]">
-                  {trail.notice}
-                </p>
-              ) : (
-                <div className="aq-card flex items-center justify-between px-4 py-3">
-                  <span className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
-                    <span
-                      aria-hidden="true"
-                      className="inline-block h-2 w-2 rounded-full bg-[#E4573D]"
-                    />
-                    ここから記録が始まりました
-                  </span>
-                  <span className="text-base font-bold">
-                    {formatDistance(trail.distanceM)}
-                  </span>
-                </div>
-              )}
-
               {quest.redrawCount < MAX_REDRAW ? (
                 <button
                   type="button"
@@ -668,7 +510,7 @@ export default function Page() {
           <div className="mt-2 flex flex-col gap-3">
             <button
               type="button"
-              onClick={() => finish("done", walked)}
+              onClick={() => finish("done")}
               disabled={busy || !actionFlipped}
               className="aq-btn"
             >
@@ -677,7 +519,7 @@ export default function Page() {
 
             <button
               type="button"
-              onClick={() => finish("not_yet", walked)}
+              onClick={() => finish("not_yet")}
               disabled={busy || !actionFlipped}
               className="aq-btn-quiet"
             >

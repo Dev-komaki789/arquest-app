@@ -38,8 +38,12 @@ let client: SupabaseClient | null = null;
  *
  * 環境変数が設定されていなければ null を返す。
  * 「例外を投げる」ではなく「null を返す」にしているのは、
- * 呼び出し側で「Supabaseが使えないなら、Overpassに直接聞く」という
- * 代替の道に進ませたいため（データベースが落ちてもアプリは動く）。
+ * 呼び出し側に代替の道へ進ませたいため（データベースが落ちてもアプリは動く）。
+ *
+ * ■ いまこの関数を呼んでいる場所は無い
+ *   唯一の利用者だったスポット検索のキャッシュ（/api/pois）を、
+ *   位置情報の廃止にあわせて削除したため。
+ *   秘密キーを使う処理が要るとき（段階6の通知など）のために残してある。
  */
 export function getSupabase(): SupabaseClient | null {
   if (client) return client;

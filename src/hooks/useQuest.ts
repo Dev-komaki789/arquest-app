@@ -53,10 +53,7 @@ export type UseQuest = {
   redraw: () => void;
   /** 引いたクエストをやめる（まだ歩き出していないとき） */
   cancel: () => void;
-  finish: (
-    result: ActionResult,
-    walked: { distanceM: number; position: { lat: number; lng: number } | null },
-  ) => void;
+  finish: (result: ActionResult) => void;
   closeReport: () => void;
 };
 
@@ -142,18 +139,10 @@ export function useQuest(): UseQuest {
   }, [quest, run]);
 
   const finish = useCallback(
-    (
-      result: ActionResult,
-      walked: { distanceM: number; position: { lat: number; lng: number } | null },
-    ) => {
+    (result: ActionResult) => {
       if (!quest) return;
       run(async () => {
-        const done = await finishQuest(
-          quest.id,
-          result,
-          walked.distanceM,
-          walked.position,
-        );
+        const done = await finishQuest(quest.id, result);
         setFinished(done.quest);
         setReward(done.reward);
         setQuest(null);
