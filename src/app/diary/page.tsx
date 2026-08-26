@@ -106,18 +106,22 @@ export default function DiaryPage() {
   }, [fetchEntries]);
 
   return (
-    <main className="min-h-dvh w-full bg-[linear-gradient(180deg,var(--grass-mist)_0%,var(--paper)_40%)] pb-28">
-      {/* 緑の帯。右上に大きな丸をひとつ置く（モックアップと同じ） */}
-      <header className="relative overflow-hidden rounded-b-[28px] bg-[var(--grass-pale)] px-5 pb-7 pt-6">
+    <main className="min-h-dvh w-full bg-[var(--navy)] pb-28">
+      {/* 紺の帯。右上に大きな丸をひとつ置く（モックアップと同じ）。
+          丸はゴールドを薄く敷くと濁るので、明るさを一段上げた紺で置く。
+          色を混ぜず明るさだけで差を付けるほうが、暗い画面では汚れて見えない */}
+      <header className="relative overflow-hidden rounded-b-[28px] bg-[var(--navy-panel)] px-5 pb-7 pt-6">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-white/40"
+          className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-[var(--navy-tile)]"
         />
         {/* 中央寄せ。左上に置くと、片手で持ったとき視線の外になりやすい。
             「ホームへ戻る」は下のタブにあるので、ここには置かない */}
         <div className="relative mx-auto w-full max-w-md text-center">
-          <h1 className="text-[30px] font-bold tracking-[0.12em]">日記帳</h1>
-          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-xs font-bold">
+          <h1 className="text-[30px] font-bold tracking-[0.12em] text-[var(--gold)]">
+            日記帳
+          </h1>
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-[var(--navy-line)] bg-[var(--navy)]/50 px-3 py-1.5 text-xs font-bold">
             <span aria-hidden="true">🔒</span>
             非公開・自分だけの記録
           </p>
@@ -180,7 +184,7 @@ export default function DiaryPage() {
                       一覧に消すボタンを置くと、指が触れただけで消えかねない */}
                   <Link
                     href={`/diary/${entry.id}`}
-                    className="aq-card flex items-center gap-3 p-3 active:bg-[var(--grass-mist)]"
+                    className="aq-card flex items-center gap-3 p-3 active:bg-[var(--navy-tile)]"
                   >
                     {url ? (
                       /* 期限つきURLの写真。毎回URLが変わるので最適化は通さない */
@@ -194,14 +198,14 @@ export default function DiaryPage() {
                     ) : (
                       <span
                         aria-hidden="true"
-                        className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-2xl bg-[var(--grass-mist)] text-2xl"
+                        className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-2xl bg-[var(--navy-tile)] text-2xl"
                       >
                         📝
                       </span>
                     )}
 
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-[var(--grass)]">
+                      <p className="text-xs font-bold text-[var(--gold)]">
                         {formatDay(entry.createdAt)}
                         <span className="ml-2 font-normal text-[var(--ink-muted)]">
                           {formatTime(entry.createdAt)}

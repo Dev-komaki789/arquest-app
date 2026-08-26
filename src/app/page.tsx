@@ -123,9 +123,9 @@ export default function Page() {
   }, [finished]);
 
   return (
-    <main className="min-h-dvh w-full bg-[linear-gradient(180deg,var(--grass-mist)_0%,var(--paper)_45%)] pb-28">
+    <main className="min-h-dvh w-full bg-[var(--navy)] pb-28">
       {error && (
-        <p className="mx-5 mt-4 rounded-2xl bg-white px-4 py-3 text-sm shadow">
+        <p className="mx-5 mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-[var(--ink-card)] shadow">
           {error}
         </p>
       )}
@@ -158,7 +158,7 @@ export default function Page() {
 
           <h1
             className={[
-              "aq-rise text-center text-[34px] font-bold tracking-[0.1em] text-[var(--grass)]",
+              "aq-rise text-center text-[34px] font-bold tracking-[0.1em] text-[var(--gold)]",
               finished.actionResult === "done" ? "drop-shadow-sm" : "",
             ].join(" ")}
           >
@@ -188,7 +188,7 @@ export default function Page() {
             <div className="aq-card aq-rise mt-2 w-full px-5 py-5">
               <dl className="flex items-baseline justify-between">
                 <dt className="text-sm">EXP</dt>
-                <dd className="text-xl font-bold text-[var(--grass)]">
+                <dd className="text-xl font-bold text-[var(--gold)]">
                   +{reward.expGained}
                 </dd>
               </dl>
@@ -197,9 +197,9 @@ export default function Page() {
                 <span className="shrink-0 text-xs text-[var(--ink-muted)]">
                   Lv.{reward.companionLevel + 1} まで
                 </span>
-                <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[var(--grass-pale)]">
+                <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[var(--navy-tile)]">
                   <div
-                    className="h-full rounded-full bg-[var(--grass)]"
+                    className="h-full rounded-full bg-[var(--gold)]"
                     style={{
                       width: `${((reward.companionExp % EXP_PER_LEVEL) / EXP_PER_LEVEL) * 100}%`,
                     }}
@@ -240,20 +240,20 @@ export default function Page() {
       ) : !quest ? (
         /* ================= ホーム ================= */
         <>
-          <section className="rounded-b-[28px] bg-[var(--grass-pale)] px-5 pb-6 pt-6">
+          <section className="rounded-b-[28px] bg-[var(--navy-tile)] px-5 pb-6 pt-6">
             <div className="mx-auto w-full max-w-md">
               {/* 自分の記録（レベル・EXP） */}
               <div className="aq-card flex items-center gap-3 px-4 py-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--grass-pale)] text-2xl"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--navy-tile)] text-2xl"
                 >
                   🚶
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2">
                     <span className="font-bold">冒険者</span>
-                    <span className="rounded-full bg-[var(--grass)] px-2 py-0.5 text-[11px] font-bold text-white">
+                    <span className="rounded-full bg-[var(--gold)] px-2 py-0.5 text-[11px] font-bold text-[var(--navy)]">
                       Lv.{profile?.level ?? 1}
                     </span>
                   </p>
@@ -265,9 +265,9 @@ export default function Page() {
                       つぎまで {EXP_PER_LEVEL - (profile?.expInLevel ?? 0)}
                     </span>
                   </p>
-                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--grass-pale)]">
+                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--navy-tile)]">
                     <div
-                      className="h-full rounded-full bg-[var(--grass)]"
+                      className="h-full rounded-full bg-[var(--gold)]"
                       style={{
                         width: `${((profile?.expInLevel ?? 0) / EXP_PER_LEVEL) * 100}%`,
                       }}
@@ -324,7 +324,7 @@ export default function Page() {
                     {profile.nextWindow.start}
                   </p>
                 </div>
-                <span className="rounded-full bg-[var(--grass-pale)] px-4 py-2 text-xs font-bold text-[var(--grass)]">
+                <span className="rounded-full bg-[var(--navy-tile)] px-4 py-2 text-xs font-bold text-[var(--gold)]">
                   {profile.nextWindow.label}
                 </span>
               </div>
@@ -346,7 +346,7 @@ export default function Page() {
             <p className="text-xs tracking-[0.2em] text-[var(--ink-muted)]">
               今日のお告げ
             </p>
-            <h1 className="mt-1 text-[26px] font-bold tracking-[0.14em] text-[var(--grass)]">
+            <h1 className="mt-1 text-[26px] font-bold tracking-[0.14em] text-[var(--gold)]">
               移動カード
             </h1>
           </header>
@@ -401,7 +401,7 @@ export default function Page() {
         <section className="mx-auto flex w-full max-w-md flex-col gap-4 px-5 pt-6">
           {/* いまのお題。文字だけだと流れてしまうので、カードとして囲む */}
           <div className="aq-card px-5 py-4">
-            <span className="inline-block rounded-full bg-[var(--grass)] px-3 py-1 text-[11px] font-bold text-white">
+            <span className="inline-block rounded-full bg-[var(--gold)] px-3 py-1 text-[11px] font-bold text-[var(--navy)]">
               今の移動カード
             </span>
             <p className="mt-3 text-xl font-bold leading-relaxed">
@@ -452,7 +452,7 @@ export default function Page() {
                 小さな文字だと読み飛ばされるので、カードにして大きく出す */}
             <div className="aq-card px-5 py-4">
               <p className="flex items-center gap-2">
-                <span className="rounded-full bg-[var(--grass)] px-3 py-1 text-[11px] font-bold text-white">
+                <span className="rounded-full bg-[var(--gold)] px-3 py-1 text-[11px] font-bold text-[var(--navy)]">
                   到着
                 </span>
                 <span className="aq-label">ここまでの移動カード</span>
@@ -462,7 +462,7 @@ export default function Page() {
               </p>
             </div>
 
-            <h1 className="text-center text-[26px] font-bold tracking-[0.14em] text-[var(--grass)]">
+            <h1 className="text-center text-[26px] font-bold tracking-[0.14em] text-[var(--gold)]">
               行動カード
             </h1>
           </header>

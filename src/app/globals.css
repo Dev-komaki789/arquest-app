@@ -5,63 +5,84 @@
  * アルクエストの見た目の決まりごと
  * ============================================================
  *
- * ■ 屋外で、片手で、一瞬しか見ない
- *   歩きながら日なたで開くので、**明るい背景に濃い文字**にする。
+ * ■ 紺地にゴールド（モックアップ 画面イメージ.png に準拠）
+ *   画面の地は深い紺。文字は白に近い色。強調はゴールド。
  *   触るものは指の幅（48px以上）を確保する。
  *
  * ■ 主役はカード1枚
- *   画面でいちばん大きく明るいのがカード。
- *   それ以外（数字・設定・注記）は、白地に薄い影で静かに置く。
- *   枠線を多用すると全部が同じ強さになって、目が行き先を決められない。
+ *   紺の画面の中で、**唯一の白い面が「めくったカード」**。
+ *   ここだけ明るいので、目が迷わずそこへ行く。
+ *   それ以外（数字・報酬・注記）は、紺の面に細い縁を付けて静かに置く。
+ *
+ * ■ 明るさで役割を分ける（面は3段）
+ *   --navy        画面の地。いちばん暗い
+ *   --navy-panel  カード・吹き出し・報酬。地より少し明るい
+ *   --navy-tile   数字タイル・入力欄・ゲージの溝。さらに明るい
+ *   一段ずつ明るくしていくと、枠線を増やさなくても面の重なりが読める。
  *
  * ■ RPGらしさは「窓」と「数字」で出す
- *   ドラクエ風の見た目を作るとき、いちばん効くのは
- *   **紺地に白縁のメッセージウィンドウ**と、**ドットの数字**。
- *   背景まで暗くすると屋外で読みにくくなるので、
- *   地の色は明るいまま、窓と数字だけを「らしく」する。
- *
- *   飾りを増やすほどRPGになるわけではない。
- *   線を増やすと屋外での可読性が落ちるので、**窓・枠・数字の3つに絞る**。
+ *   ドラクエ風の見た目でいちばん効くのは、**紺地に縁のメッセージウィンドウ**と
+ *   **ドットの数字**。飾りを増やすほどRPGになるわけではないので、
+ *   **窓・枠・数字の3つに絞る**。
  *
  * ■ 色の役割を決めて、混ぜない
- *   スカイブルー … 画面の帯・現在地・リンク
- *   ゴールド     … 「進む」ボタンと、ごほうび（EXP）だけ
- *   ピンク       … 相棒だけ（画面の中で相棒を探せるようにする）
- *   紺           … 文字
+ *   ゴールド … 「進む」ボタン、見出し、ごほうび（EXP）だけ
+ *   ピンク   … 相棒だけ（画面の中で相棒を探せるようにする）
+ *   白       … めくったカードの地と、その上の文字
+ *
+ * ■ 文字色が2種類ある理由
+ *   地が紺の場所と、地が白いカードの上とで、読める色が逆になる。
+ *   --ink / --ink-muted        … 紺の上に置く文字（明るい）
+ *   --ink-card / --ink-card-muted … 白いカードの上に置く文字（暗い）
+ *   白い面（.aq-hero と下部のタブ）だけが後者を使う。
  */
 
 /**
- * アルクエストの配色（仕様書§4／モックアップ screen-shot/ に準拠）
+ * アルクエストの配色（モックアップ 画面イメージ.png から採色）
  *
  * ■ ゴールドの使いどころ
- *   「進む」ボタンと、ごほうび（EXP・レベル）にだけ使う。
+ *   「進む」ボタンと、見出しと、ごほうび（EXP・レベル）にだけ使う。
  *   全画面に散らすと、どれが強調なのか分からなくなる。
  *
- * ■ 紺は「相棒が喋る場所」の色
- *   メッセージウィンドウと、達成報告の背景。
- *   この2つだけが紺地なので、相棒の言葉が特別に見える。
+ * ■ ゴールドが2つある理由
+ *   --gold は紺の上でよく光るが、**白いカードの上に置くと薄くて読めない。**
+ *   白い面に置くゴールドだけ、暗くした --gold-ink を使う。
  */
 :root {
-  /* 緑（散歩の色）。ボタン・見出し・強調はこの系統 */
-  --grass: #4e7233; /* 主ボタン・見出し */
-  --grass-deep: #3f5c29; /* 押したとき */
-  --grass-pale: #dce9cd; /* 画面上の帯 */
-  --grass-mist: #eef5e4; /* 画面の地の色（上） */
+  /* 紺（地の色）。暗いほうから明るいほうへ3段 */
+  --navy: #0f1633; /* 画面の地 */
+  --navy-panel: #182551; /* 面（カード・吹き出し・報酬） */
+  --navy-tile: #2e395f; /* 一段明るい面（タイル・入力欄・ゲージの溝） */
+  --navy-line: #445791; /* 枠線・控えめボタンの縁 */
 
-  --paper: #f4f8ee; /* 画面の地の色（下） */
-  --ink: #2f3a24; /* 文字 */
-  --ink-muted: rgba(47, 58, 36, 0.55);
+  /* ゴールド（進む・見出し・ごほうび） */
+  --gold: #f5c23c;
+  --gold-lift: #fcd168; /* ボタンの上端（明るいほう） */
+  --gold-deep: #d8a32c; /* ボタンの沈み */
+  --gold-pale: #fbe9b8; /* 注意書きの地 */
+  /*
+   * 白い面の上に置くゴールド。
+   *
+   * モックアップの見た目に寄せると #A97F1E あたりになるが、
+   * それだと白地とのコントラストが 3.66 で、**11pxのラベルには足りない**
+   * （小さい文字は4.5必要）。使う場所がカード内のラベルと下のタブ、
+   * どちらも小さい文字なので、読めるところまで暗くしてある（5.04）。
+   */
+  --gold-ink: #8d6916;
 
-  /* 前の配色。相棒の絵と地図の線でまだ使う */
+  /* 文字。紺の上と、白いカードの上とで分ける */
+  --ink: #eef2ff;
+  --ink-muted: rgba(238, 242, 255, 0.58);
+  --ink-card: #16204a;
+  --ink-card-muted: rgba(22, 32, 74, 0.6);
+
+  /* 相棒の絵と、移動中の景色でまだ使う */
   --sky: #5b8def;
-  --sky-deep: #3e6fd8;
-  --sky-pale: #e8effb;
-  --navy: #1e2a4a;
-  --gold: #f5b942;
-  --gold-deep: #e0a93c;
+  --pink: #f2a0b0;
 
-  --shadow-card: 0 2px 14px rgba(47, 58, 36, 0.08);
-  --shadow-hero: 0 12px 28px rgba(47, 58, 36, 0.16);
+  /* 紺地なので、影は黒を濃いめに落とす（薄いと浮いて見えない） */
+  --shadow-card: 0 2px 14px rgba(0, 0, 0, 0.35);
+  --shadow-hero: 0 14px 30px rgba(0, 0, 0, 0.45);
 }
 
 /**
@@ -71,23 +92,32 @@
  * 名前を付けて1か所に置き、変えるときもここだけ直す。
  */
 @layer components {
-  /* 情報を載せる白い面。枠線ではなく影で浮かせる */
+  /* 情報を載せる面。地より一段明るくして、細い縁を足す */
   .aq-card {
-    background: #fff;
+    background: var(--navy-panel);
+    border: 1px solid var(--navy-line);
     border-radius: 22px;
     box-shadow: var(--shadow-card);
   }
 
-  /* 主役のカード（お告げの文面）。いちばん強く浮かせる */
+  /**
+   * 主役のカード（お告げの文面）。
+   *
+   * **画面で唯一の白い面。**ゴールドの縁を付けて、いちばん強く浮かせる。
+   * 地が白いので、中の文字は暗いほう（--ink-card）に切り替える。
+   */
   .aq-hero {
     background: #fff;
+    color: var(--ink-card);
+    border: 2px solid var(--gold);
     border-radius: 26px;
     box-shadow: var(--shadow-hero);
   }
 
-  /* 数字を並べる小さな面 */
+  /* 数字を並べる小さな面。カードよりさらに明るくして手前に見せる */
   .aq-tile {
-    background: #fff;
+    background: var(--navy-tile);
+    border: 1px solid var(--navy-line);
     border-radius: 16px;
     box-shadow: var(--shadow-card);
     padding: 0.75rem;
@@ -102,7 +132,17 @@
     color: var(--ink-muted);
   }
 
-  /* 進むボタン（ゴールド）。押すと沈む */
+  /* 白いカードの中だけは、薄い色だと沈むのでゴールドにする（モックアップ①③） */
+  .aq-hero .aq-label {
+    color: var(--gold-ink);
+  }
+
+  /**
+   * 進むボタン（ゴールド）。押すと沈む。
+   *
+   * 文字は白ではなく紺。ゴールドは明るい色なので、
+   * 白い文字を載せるとコントラストが足りず、日なたで読めなくなる。
+   */
   .aq-btn {
     display: block;
     width: 100%;
@@ -111,11 +151,11 @@
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.08em;
-    color: #fff;
-    background: linear-gradient(180deg, #5b8340 0%, var(--grass) 100%);
+    color: var(--navy);
+    background: linear-gradient(180deg, var(--gold-lift) 0%, var(--gold) 100%);
     box-shadow:
-      0 3px 0 var(--grass-deep),
-      0 6px 14px rgba(78, 114, 51, 0.28);
+      0 3px 0 var(--gold-deep),
+      0 6px 14px rgba(0, 0, 0, 0.35);
     transition: transform 0.08s ease;
   }
   .aq-btn:active:not(:disabled) {
@@ -126,7 +166,7 @@
     opacity: 0.5;
   }
 
-  /* 迷ったときの選択肢（白） */
+  /* 迷ったときの選択肢（紺に縁）。進むボタンと明るさで差を付ける */
   .aq-btn-quiet {
     display: block;
     width: 100%;
@@ -136,7 +176,8 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     color: var(--ink);
-    background: #fff;
+    background: var(--navy-panel);
+    border: 1px solid var(--navy-line);
     box-shadow: var(--shadow-card);
   }
   .aq-btn-quiet:disabled {
@@ -164,13 +205,15 @@
   /**
    * メッセージウィンドウ（相棒が喋る場所）。
    *
-   * 紺地に白の二重枠。外側を濃く、内側を明るくすると窓らしく見える。
+   * 紺地にゴールドの枠。相棒が喋る場所だけこの縁を使うので、
+   * 画面の中で「言葉が出ているところ」がひと目で分かる。
    * 仕様書§4のモチーフで、このアプリでいちばんRPGらしい部分。
    */
   .aq-window {
     position: relative;
-    background: #fff;
+    background: var(--navy-panel);
     color: var(--ink);
+    border: 2px solid var(--gold);
     border-radius: 20px;
     box-shadow: var(--shadow-card);
     padding: 0.9rem 1.1rem 1.5rem;
@@ -179,7 +222,7 @@
 
   /* 窓の中の名前。ゴールドで小さく */
   .aq-window-name {
-    color: var(--grass);
+    color: var(--gold);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.18em;
@@ -193,17 +236,18 @@
     right: 0.7rem;
     bottom: 0.45rem;
     font-size: 11px;
-    color: var(--grass);
+    color: var(--gold);
     animation: blink-soft 1.6s ease-in-out infinite;
   }
 
   /**
-   * 窓枠（カード・タイルにかける二重の枠）。
+   * 窓枠（移動中の帯などにかける枠）。
    *
-   * 白いカードの内側に薄い線をもう1本引くだけ。
-   * これがあるだけで「ただの白い箱」が「メニューの窓」に見える。
+   * 面の縁に線をもう1本引くだけ。
+   * これがあるだけで「ただの箱」が「メニューの窓」に見える。
    */
   .aq-frame {
+    border: 1px solid var(--navy-line);
     box-shadow: var(--shadow-card);
   }
 
@@ -227,12 +271,15 @@
 }
 
 @theme inline {
-  --color-grass: var(--grass);
-  --color-grass-deep: var(--grass-deep);
-  --color-grass-pale: var(--grass-pale);
-  --color-ink: var(--ink);
-  --color-gold: var(--gold);
   --color-navy: var(--navy);
+  --color-navy-panel: var(--navy-panel);
+  --color-navy-tile: var(--navy-tile);
+  --color-navy-line: var(--navy-line);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-gold-ink: var(--gold-ink);
+  --color-ink: var(--ink);
+  --color-ink-card: var(--ink-card);
   --color-sky: var(--sky);
 }
 
@@ -258,55 +305,57 @@
 }
 
 /**
- * 相棒がぴょんと跳ねる。
+ * 相棒がぴょんと跳ねる。**絵は1枚だけ。**
  *
- * ■ 絵は2枚しかないのに、なぜ滑らかに見えるのか
- *   上下の移動と伸び縮みはCSSが連続して繋いでくれるので、
- *   絵の切り替えが2回でも動き自体は途切れない。
- *   絵は「ふつう」と「つぶれ」の2枚を、次の場所で入れ替えている。
+ * ■ なぜ絵を差し替えないのか
+ *   以前は着地の一瞬だけ「つぶれ」の絵に切り替えていた。
+ *   速い場面なので気づかれない想定だったが、実際は
+ *   **入れ替わった瞬間がはっきり見えて違和感が出た。**
+ *   2枚は縦横の比率が違う（1.28:1 と 1.89:1）ので、
+ *   差し替わると輪郭が別物になり、動きの連続が切れてしまう。
  *
- *     0%  接地（つぶれ） → 8% 離陸（ふつう） → 28% 頂点
- *     → 55% 着地（つぶれ） → 62%〜100% 待機（ふつう）
+ *   1枚をCSSで潰し伸ばしすれば、形が連続して変わるので繋がって見える。
  *
- * ■ 切り替えを着地の瞬間に置く理由
- *   いちばん速く動いている場面なので、絵が入れ替わったことに目が留まらない。
- *   ゆっくり動いている場面で切り替えると、パッと変わったのがはっきり見える。
+ * ■ 潰し伸ばし（スクワッシュ＆ストレッチ）
+ *   跳ねる動きは、上下に動かすだけでは硬い人形に見える。
+ *   **溜めで横に潰し、飛び出しで縦に伸ばす。**これだけで柔らかいものに見える。
+ *   横と縦は必ず逆向きにする（1.10 × 0.88 のように）。
+ *   体積が変わって見えないので、伸び縮みが自然に読める。
  *
- * ■ 半透明で重ねない理由
- *   2枚をクロスフェードすると、速い動きでは残像のように見える。
- *   ぱっと切り替えるほうが、絵が2枚でも「動いている」と見える。
+ *     待機 → 溜め（潰れる）→ 離陸（伸びる）→ 頂点（もどる）
+ *     → 落下（伸びる）→ 着地（潰れる）→ 反動 → 待機
+ *
+ * ■ 潰す量を控えめにしてある理由
+ *   絵を1枚で持たせるぶん、深く潰したくなるが、
+ *   **0.85を下回ると顔と目が横に広がって崩れる。**
+ *   潰れの深さより、溜めと着地の「速さの差」で跳ねて見せるほうがよい。
+ *
+ * ■ 支点は下端（.slime-hop の transform-origin）
+ *   中央を支点にすると、潰れるたびに足元が浮き沈みして地面が動いて見える。
  */
 @keyframes slime-hop-move {
   /* 待機。ここが長いので「たまに跳ねる」に見える */
   0%,
   26% {
     transform: translateY(0) scale(1, 1);
-    animation-timing-function: ease-in;
+    animation-timing-function: ease-in-out;
   }
 
-  /* ぐ〜（溜め）。ゆっくり潰れる。
-     絵は「ふつう」のままCSSで潰すので、切り替わりが見えない */
+  /* ぐ〜（溜め）。ゆっくり潰れていく。ここが遅いほど、次の跳躍が速く見える */
   40% {
-    transform: translateY(0) scale(1.05, 0.91);
-    animation-timing-function: linear;
-  }
-
-  /* 潰れきったところ。ここで絵を「つぶれ」に差し替える。
-     2枚のシルエットが一番近いので、入れ替わりが目に留まらない */
-  44% {
-    transform: translateY(0) scale(1.03, 0.93);
+    transform: translateY(0) scale(1.09, 0.88);
     animation-timing-function: ease-out;
   }
 
   /* 底で少しだけ粘る。ここが「ぐ〜」の頂点 */
-  48% {
-    transform: translateY(0) scale(1.02, 0.95);
+  47% {
+    transform: translateY(0) scale(1.07, 0.9);
     animation-timing-function: cubic-bezier(0.15, 0.9, 0.25, 1);
   }
 
-  /* ぴょーん。一気に伸びて離陸する（絵は「ふつう」に戻る） */
+  /* ぴょーん。一気に縦へ伸びて離陸する */
   53% {
-    transform: translateY(-14%) scale(0.89, 1.17);
+    transform: translateY(-15%) scale(0.87, 1.19);
     animation-timing-function: ease-out;
   }
 
@@ -317,83 +366,34 @@
   }
 
   /* 落下。落ちながら縦に伸びる */
-  76% {
-    transform: translateY(-5%) scale(0.94, 1.08);
+  75% {
+    transform: translateY(-12%) scale(0.93, 1.1);
     animation-timing-function: linear;
   }
 
-  /* 着地の潰れ。ここも絵を「つぶれ」にする（速いので見えない） */
-  80% {
-    transform: translateY(0) scale(1.07, 0.9);
+  /* 着地。いちばん深く潰れる瞬間 */
+  82% {
+    transform: translateY(0) scale(1.12, 0.86);
     animation-timing-function: ease-out;
   }
 
+  /* 反動で少しだけ伸び返す。
+     ここが無いと、着地でぴたりと止まって固い印象になる */
+  90% {
+    transform: translateY(0) scale(0.97, 1.04);
+    animation-timing-function: ease-in-out;
+  }
+
   /* もとに戻って、また待機へ */
-  88%,
+  96%,
   100% {
     transform: translateY(0) scale(1, 1);
-  }
-}
-
-/* 「ふつう」の絵を出す区間。%は上の動きと必ず揃えること */
-@keyframes slime-hop-normal {
-  0%,
-  43.9% {
-    opacity: 1;
-  }
-  44%,
-  49.9% {
-    opacity: 0;
-  }
-  50%,
-  77.9% {
-    opacity: 1;
-  }
-  78%,
-  83.9% {
-    opacity: 0;
-  }
-  84%,
-  100% {
-    opacity: 1;
-  }
-}
-
-/* 「つぶれ」の絵を出す区間。上の裏返し */
-@keyframes slime-hop-squashed {
-  0%,
-  43.9% {
-    opacity: 0;
-  }
-  44%,
-  49.9% {
-    opacity: 1;
-  }
-  50%,
-  77.9% {
-    opacity: 0;
-  }
-  78%,
-  83.9% {
-    opacity: 1;
-  }
-  84%,
-  100% {
-    opacity: 0;
   }
 }
 
 .slime-hop {
   animation: slime-hop-move 2.2s infinite;
   transform-origin: 50% 100%;
-}
-
-.slime-hop-normal {
-  animation: slime-hop-normal 2.2s steps(1, end) infinite;
-}
-
-.slime-hop-squashed {
-  animation: slime-hop-squashed 2.2s steps(1, end) infinite;
 }
 
 /**
@@ -541,8 +541,6 @@
 @media (prefers-reduced-motion: reduce) {
   .slime-breathe,
   .slime-hop,
-  .slime-hop-normal,
-  .slime-hop-squashed,
   .scene-scroll,
   .blink-soft,
   .aq-flip,
@@ -550,11 +548,6 @@
   .aq-flake,
   .aq-rise {
     animation: none;
-  }
-
-  /* 止めたときに2枚が重なって見えないよう、つぶれのほうを隠す */
-  .slime-hop-squashed {
-    opacity: 0;
   }
 }
 
@@ -571,8 +564,12 @@ html {
 }
 
 body {
+  /*
+   * 地の色と文字色はここで決める。
+   * 画面側で塗り忘れても、白地が透けて一瞬光ることがないようにする。
+   */
   color: var(--ink);
-  background: var(--paper);
+  background: var(--navy);
 
   /*
    * 日本語の書体。

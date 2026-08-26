@@ -91,7 +91,7 @@ export function DiaryComposer({
       <p className="text-sm font-bold">日記に書く</p>
 
       {error && (
-        <p className="rounded-xl border border-[#D2691E]/40 bg-[var(--gold-pale)] px-3 py-2 text-xs text-[var(--navy)]">
+        <p className="rounded-xl border border-[var(--gold-deep)]/50 bg-[var(--gold-pale)] px-3 py-2 text-xs text-[var(--ink-card)]">
           {error}
         </p>
       )}
@@ -118,7 +118,7 @@ export function DiaryComposer({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-xl border border-dashed border-[var(--navy)]/25 py-6 text-sm text-[var(--ink)]/70"
+          className="rounded-xl border border-dashed border-[var(--ink)]/30 py-6 text-sm text-[var(--ink)]/70"
         >
           写真を撮る／選ぶ
         </button>
@@ -139,7 +139,7 @@ export function DiaryComposer({
         rows={3}
         maxLength={300}
         placeholder="ひとこと（なくても大丈夫）"
-        className="w-full rounded-xl border border-[var(--navy)]/10 bg-[var(--sky-pale)] px-3 py-2 text-sm text-[var(--navy)] placeholder:text-[var(--ink)]/45"
+        className="w-full rounded-xl border border-[var(--navy-line)] bg-[var(--navy-tile)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/45"
       />
 
       <p className="text-xs leading-relaxed text-[var(--ink)]/55">

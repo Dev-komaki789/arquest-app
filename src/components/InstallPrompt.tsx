@@ -109,7 +109,7 @@ export function InstallPrompt() {
       <button
         type="button"
         onClick={install}
-        className="aq-card w-full px-4 py-3 text-sm font-bold text-[var(--sky-deep)]"
+        className="aq-card w-full px-4 py-3 text-sm font-bold text-[var(--gold)]"
       >
         ホーム画面に追加する
       </button>

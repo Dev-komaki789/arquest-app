@@ -26,9 +26,9 @@ export default function manifest(): MetadataRoute.Manifest {
     // standalone … ブラウザのアドレス欄を出さず、アプリのように全画面で開く
     display: "standalone",
     // 起動直後、画面が描かれるまでの間に見える色。画面の地の色に合わせる
-    background_color: "#EEF5E4",
-    // Androidの上部（時計や電池が並ぶ帯）の色。ホームの帯と同じ緑
-    theme_color: "#DCE9CD",
+    background_color: "#0F1633",
+    // Androidの上部（時計や電池が並ぶ帯）の色。画面の地と同じ紺
+    theme_color: "#0F1633",
     // 縦向き固定。歩きながら片手で使うので横向きにする理由がない
     orientation: "portrait",
     lang: "ja",

@@ -96,8 +96,10 @@ export function CardFlip({
         </>
       ) : (
         <>
-          {/* 裏面。？を点線の丸で囲むだけの、静かな見た目にする */}
-          <span className="flex h-24 w-24 items-center justify-center rounded-full border-[3px] border-dashed border-[var(--grass)]/45 text-4xl font-bold text-[var(--grass)]">
+          {/* 裏面。？を点線の丸で囲むだけの、静かな見た目にする。
+              カードの地が白いので、ゴールドは暗いほう（--gold-ink）を使う。
+              明るいゴールドだと白に溶けて「？」が見えなくなる */}
+          <span className="flex h-24 w-24 items-center justify-center rounded-full border-[3px] border-dashed border-[var(--gold-ink)]/45 text-4xl font-bold text-[var(--gold-ink)]">
             ?
           </span>
           <p className="mt-5 text-base font-bold tracking-wide">

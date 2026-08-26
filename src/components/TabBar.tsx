@@ -32,7 +32,10 @@ export function TabBar() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-[var(--ink)]/10 bg-white/95 backdrop-blur"
+      /* ここだけ地が白い（モックアップ①）。
+         紺地用の --ink をそのまま使うと白地に白文字になるので、
+         この中の文字色は暗いほう（--ink-card）に切り替える */
+      className="fixed inset-x-0 bottom-0 z-10 border-t border-[var(--ink-card)]/10 bg-white/95 backdrop-blur"
       // 端末の下端にあるバーの高さぶん、余白を足す
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
@@ -45,7 +48,7 @@ export function TabBar() {
               <li key={tab.href} className="flex-1">
                 <span
                   aria-disabled="true"
-                  className="flex flex-col items-center gap-0.5 py-2 text-[11px] text-[var(--ink)]/25"
+                  className="flex flex-col items-center gap-0.5 py-2 text-[11px] text-[var(--ink-card)]/25"
                 >
                   <span
                     aria-hidden="true"
@@ -65,7 +68,8 @@ export function TabBar() {
                 href={tab.href}
                 className={[
                   "flex flex-col items-center gap-0.5 py-2 text-[11px] transition",
-                  active ? "text-[var(--sky-deep)]" : "text-[var(--ink)]/45",
+                  // 11pxなので、薄くしすぎると白地で読めなくなる（68%で5.55）
+                  active ? "text-[var(--gold-ink)]" : "text-[var(--ink-card)]/68",
                 ].join(" ")}
               >
                 <span

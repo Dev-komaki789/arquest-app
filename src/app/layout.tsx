@@ -36,8 +36,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Androidの上部（時計や電池が並ぶ帯）の色。ホームの帯と同じ緑に揃える
-  themeColor: "#DCE9CD",
+  // Androidの上部（時計や電池が並ぶ帯）の色。画面の地と同じ紺に揃える
+  themeColor: "#0F1633",
   // 端末の幅に合わせる。歩きながら片手で使うので、勝手に拡大縮小させない
   width: "device-width",
   initialScale: 1,
@@ -55,6 +55,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" className={`${pixel.variable} h-full antialiased`}>
+      {/* 地の色と文字色は globals.css の body 側で決めている */}
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

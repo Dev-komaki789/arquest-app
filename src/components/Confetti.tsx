@@ -27,7 +27,11 @@ function scatter(seed: number): number {
   return value - Math.floor(value);
 }
 
-const COLORS = ["#F5B942", "#7BC96F", "#8FC7F0", "#F2A0B0", "#E4573D", "#4E7233"];
+/**
+ * 紙の色。**紺地の上で光るものだけを選ぶ。**
+ * 濃い緑や濃い赤を混ぜると、暗い背景に沈んで「舞っている」ように見えない。
+ */
+const COLORS = ["#F5C23C", "#FCD168", "#FFFFFF", "#8FC7F0", "#F2A0B0", "#FBE9B8"];
 
 export function Confetti() {
   return (

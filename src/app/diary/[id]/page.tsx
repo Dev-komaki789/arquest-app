@@ -142,10 +142,10 @@ export default function DiaryDetailPage() {
   const shownPhoto = preview ?? (newPhoto === "remove" ? null : photoUrl);
 
   return (
-    <main className="min-h-dvh w-full bg-[linear-gradient(180deg,var(--grass-mist)_0%,var(--paper)_40%)] pb-16">
-      <header className="rounded-b-[28px] bg-[var(--grass-pale)] px-5 pb-7 pt-6">
+    <main className="min-h-dvh w-full bg-[var(--navy)] pb-16">
+      <header className="rounded-b-[28px] bg-[var(--navy-panel)] px-5 pb-7 pt-6">
         <div className="mx-auto w-full max-w-md">
-          <Link href="/diary" className="aq-btn-text !w-auto !justify-start !p-0 !text-[var(--grass)]">
+          <Link href="/diary" className="aq-btn-text !w-auto !justify-start !p-0 !text-[var(--gold)]">
             ← 日記帳
           </Link>
           {entry && (
@@ -188,14 +188,14 @@ export default function DiaryDetailPage() {
                 className="w-full rounded-3xl object-cover shadow-[var(--shadow-card)]"
               />
             ) : (
-              <div className="flex h-40 items-center justify-center rounded-3xl bg-[var(--grass-mist)] text-3xl">
+              <div className="flex h-40 items-center justify-center rounded-3xl bg-[var(--navy-tile)] text-3xl">
                 📝
               </div>
             )}
 
             <div className="aq-card px-5 py-5">
               <p className="aq-label">その日のお題</p>
-              <p className="mt-2 text-sm font-bold leading-relaxed text-[var(--grass)]">
+              <p className="mt-2 text-sm font-bold leading-relaxed text-[var(--gold)]">
                 {entry.movementLabel ?? "（記録なし）"}
                 <span className="mx-2">／</span>
                 {entry.questLabel ?? "（記録なし）"}
@@ -211,7 +211,7 @@ export default function DiaryDetailPage() {
                     rows={5}
                     maxLength={300}
                     placeholder="ひとこと（なくても大丈夫）"
-                    className="w-full rounded-xl bg-[var(--grass-mist)] px-3 py-3 text-sm leading-relaxed placeholder:text-[var(--ink-muted)]"
+                    className="w-full rounded-xl bg-[var(--navy-tile)] px-3 py-3 text-sm leading-relaxed placeholder:text-[var(--ink-muted)]"
                   />
 
                   <div className="mt-3 flex gap-2">
@@ -301,7 +301,7 @@ export default function DiaryDetailPage() {
                     type="button"
                     onClick={remove}
                     disabled={busy}
-                    className="aq-btn-quiet flex-1 !text-[#C0453A]"
+                    className="aq-btn-quiet flex-1 !text-[#FF8A7A]"
                   >
                     <span aria-hidden="true" className="mr-2">
                       🗑
